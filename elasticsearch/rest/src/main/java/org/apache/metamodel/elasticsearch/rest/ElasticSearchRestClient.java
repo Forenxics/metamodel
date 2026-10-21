@@ -32,7 +32,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.GetMappingsRequest;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,7 +69,7 @@ public class ElasticSearchRestClient extends RestHighLevelClient {
                 .collect(Collectors.toSet());
     }
 
-    private static Entry<String, Object> convertMapping(final Entry<String, MappingMetaData> entry) {
+    private static Entry<String, Object> convertMapping(final Entry<String, MappingMetadata> entry) {
         return new Entry<String, Object>() {
             @Override
             public String getKey() {

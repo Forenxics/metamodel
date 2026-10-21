@@ -52,7 +52,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.GetMappingsRequest;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -128,7 +128,7 @@ public class ElasticSearchRestDataContext extends AbstractElasticSearchDataConte
     protected SimpleTableDef[] detectSchema() {
         logger.info("Detecting schema for index '{}'", indexName);
 
-        final Map<String, MappingMetaData> mappings;
+        final Map<String, MappingMetadata> mappings;
         try {
             mappings = getRestHighLevelClient()
                     .indices()
@@ -144,7 +144,7 @@ public class ElasticSearchRestDataContext extends AbstractElasticSearchDataConte
         if (mappings.isEmpty()) {
             logger.warn("No metadata returned for index name '{}' - no tables will be detected.", indexName);
         } else {
-            for (final Entry<String, MappingMetaData> mapping : mappings.entrySet()) {
+            for (final Entry<String, MappingMetadata> mapping : mappings.entrySet()) {
                 final String tableName = mapping.getValue().type();
                 final Map<String, Object> mappingConfiguration = mapping.getValue().getSourceAsMap();
                 

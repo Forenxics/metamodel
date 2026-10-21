@@ -7,10 +7,15 @@ SugarCRM). 30 Maven modules.
 
 ## Setup commands
 
-- **JDK**: Temurin 21 is the verified toolchain (`C:\Users\patri\AppData\Local\Programs\Temurin\jdk-21.0.12+8`).
-  The source level is still **Java 8** — do not raise it without a deliberate decision.
-- **Maven**: 3.9.9, vendored at `.tools/apache-maven-3.9.9`. Use the wrapper at the workspace
-  root: `E:\MINIMAX\metamodel-master\mvnw.cmd` (it pins `JAVA_HOME` and `PATH`).
+- **Published bytecode floor: Java 8.** The library is compiled with
+  `maven.compiler.release=8`, so it runs on a Java 8 runtime. Do not raise the floor
+  without an explicit product decision — it breaks every consumer on older Java.
+- **JDK used to run the build: 11, 17, 21 or 25.** The *test* toolchain needs Java 11
+  or later (EasyMock 5 requires it), so JDK 8 cannot run the build at all.
+- Two launchers sit one directory above the repo root, and both pin `JAVA_HOME`:
+  - `mvnw.cmd` — Temurin **21.0.12** (the default)
+  - `mvnw25.cmd` — Temurin **25.0.4.1+1** (the current LTS)
+- Maven: **3.9.9**, vendored at `.tools/apache-maven-3.9.9`.
 - Install deps: `& 'E:\MINIMAX\metamodel-master\mvnw.cmd' -B clean install`
 
 ## Build & test commands
@@ -102,6 +107,17 @@ changes ripple into every adapter, so treat them as public API.
   throws `InaccessibleObjectException`, and the class silently degraded. Use the public
   `ObjectStreamClass` API only — `getSerialVersionUID()` and `getFields()` are enough to
   recognise an enum descriptor (`suid == 0 && fields.length == 0`).
+- **The SecurityManager is gone.** JDK 24 removed it permanently (JEP 486), and even
+  `-Djava.security.manager=allow` now makes the JVM refuse to start. The Elasticsearch
+  7.x test framework installs one, so the test JVM is given
+  `-Dtests.security.manager=false` (the framework's own switch) instead.
+- **EasyMock bundles its own ByteBuddy.** The EasyMock version decides which JDKs the
+  class-mocking tests can run on — 5.2.0 could not generate classes on JDK 25. Bump
+  EasyMock before bumping the JDK.
+- **`maven.compiler.release`, not source/target.** With `source`/`target` only, code can
+  call a Java 9+ API and still compile on a modern JDK, producing a class file that
+  throws `NoSuchMethodError` on a real Java 8 runtime. `release` compiles against the
+  Java 8 API signatures and makes that class of bug impossible.
 - **Java 8 source level.** No `List.of`/`Map.of`, no `var`, no `Files.readString`, no
   `Optional.isEmpty`, no text blocks, no `Stream.toList()`.
 - **Do not run `mvn install` concurrently** from more than one process — it races on `~/.m2`.
@@ -109,6 +125,22 @@ changes ripple into every adapter, so treat them as public API.
   ever existed on now-dead plain-HTTP repositories; they are pinned in the POMs.
 - **`sugarcrm`, `neo4j`, `full` and `spring`** are at the end of the reactor and depend on the
   JAX-WS code generation plugin; a failure there blocks the tail of the build.
+- **The `full` package duplicates some classes on purpose.**
+  `full/tattletale-filters.properties` lists them — multi-release `module-info.class`,
+  empty `package-info` markers, and the `javax.*` classes that the `jakarta.*`-named
+  artifacts ship under the old namespace. Tattletale fails the build on any duplicate
+  class that is *not* listed there, so regenerate that file when the dependency graph
+  changes.
+
+## Per-module runtime floors
+
+The library's bytecode is Java 8, but two things need more at runtime:
+
+| Module | Needs | Why |
+|---|---|---|
+| `elasticsearch-common`, `elasticsearch-native`, `elasticsearch-rest` | **Java 11** | `org.elasticsearch:elasticsearch:7.17.28` is Java 11 bytecode |
+| everything else | **Java 8** | — |
+| the **test** toolchain | **Java 11** | EasyMock 5.x, and the Elasticsearch test framework |
 
 ## PR & commit conventions
 

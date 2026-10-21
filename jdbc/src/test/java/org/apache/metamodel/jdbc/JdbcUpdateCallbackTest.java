@@ -19,6 +19,7 @@
 package org.apache.metamodel.jdbc;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 
 import java.sql.Connection;
@@ -116,10 +117,14 @@ public class JdbcUpdateCallbackTest {
             };
         }
         for (Thread thread : threads) {
+            // a stuck worker thread must never keep the JVM - and with it the
+            // whole build - alive
+            thread.setDaemon(true);
             thread.start();
         }
         for (Thread thread : threads) {
-            thread.join();
+            thread.join(240_000);
+            assertFalse("the update thread did not finish within four minutes", thread.isAlive());
         }
 
         assertEquals(threadCount * iterationsPerThread, getCounterValue(dataContext, table, col));

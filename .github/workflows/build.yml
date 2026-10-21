@@ -42,7 +42,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: [ '11', '17', '21' ]
+        # 11 is the lowest JDK the test toolchain supports (EasyMock 5 needs
+        # Java 11). 25 is the current LTS. The *published bytecode* of the
+        # library stays at Java 8 - see AGENTS.md.
+        java: [ '11', '17', '21', '25' ]
     steps:
       - uses: actions/checkout@v4
 

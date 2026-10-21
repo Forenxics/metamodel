@@ -15,12 +15,13 @@ re-running the test, the entry says so explicitly.
 
 | | |
 |---|---|
-| Defects found and fixed | **36** (8 × S1 security, 20 × S2 correctness, 8 × S3 robustness) |
+| Defects found and fixed | **42** (10 × S1 security, 24 × S2 correctness, 8 × S3 robustness) |
 | Defects found and deliberately **not** fixed (with the exact recommended change) | **14** |
 | Findings **refuted** on re-verification | **1** — acting on it would have caused a double-escaping regression (§4) |
 | New regression tests / test methods | **14 new test classes, ~90 new test methods** |
 | Modules that did not build at all before the audit | **8** (7 missing module directories + the `sugarcrm` dependency deadlock) |
 | Dependency advisories triaged | **342** across 461 resolved artifacts; **23 upgrades applied** and verified clean against OSV |
+| Build toolchain | 2020-era plugins replaced; **green on Temurin 21.0.12 and 25.0.4.1+1 (LTS)**, 30/30 modules, 1022 tests |
 | Test suites | all green, 30 of 30 modules |
 
 ---
@@ -113,6 +114,8 @@ See SC-01 and SC-02 above.
 | CQ-06 | S3 | `core/.../convert/StringToDateConverter.java` | The pattern-based constructor silently used the JVM default `Locale` with no way to specify another, and the invalid-pattern validation happened only by side effect. | **Fixed** — a `Locale`-aware constructor was added, the pattern is validated eagerly (fail-fast preserved), and parsing failures now raise a descriptive `IllegalArgumentException`. **Proved**. |
 | — | — | `core/.../query/AggregateFunction*` | **Hypothesis tested and refuted:** COUNT / SUM / AVERAGE / MIN / MAX over empty and all-NULL inputs were checked against the documented behaviour and found correct. A new `AggregateFunctionTest` (5 tests) was added as a regression guard. | No production change required |
 | NW-03 | S2 | `kafka/.../KafkaConsumerAndProducerFactory.java` | **Two copy-paste bugs in the same method**: the producer's `VALUE_SERIALIZER_CLASS_CONFIG` and `VALUE_DESERIALIZER_CLASS_CONFIG` were both set from the **key** class rather than the value class; and `createProducer` assembled a `properties` object and then returned `new KafkaProducer<>(baseProperties)` — **discarding it**, so none of the configuration took effect. | **Fixed** + regression test. **Proved**. |
+| JDBC-11 | S2 | `jdbc/src/test/java/.../JdbcUpdateCallbackTest.java` | **A concurrency test whose runtime varied 4.5× by JDK, and which could stall the build indefinitely.** Two threads run a read-then-update loop against Derby under `REPEATABLE_READ`, so every contended update produces a genuine lock cycle that Derby has to detect and roll back — the test therefore spends most of its time waiting on Derby's deadlock detector rather than testing anything. Observed: **40 s on JDK 21, 180 s on JDK 25**, with a thread dump showing the workers parked in `ActiveLock.waitForGrant()`. Worse, it called `thread.join()` with **no timeout**, so a stuck worker would have hung the build forever, and the workers were non-daemon threads, so a stuck worker would have kept the forked test JVM alive too. | **Fixed** — the workers are daemon threads (a stuck worker can never keep the JVM, and with it the build, alive) and the join has a four-minute timeout with an explicit assertion, so a genuine hang is reported as a test failure instead of a stalled build. The test's logic and assertions are unchanged. Bounding Derby's own `derby.locks.waitTimeout` was tried as well and reverted: it is not honoured for this database, and passing it as a system property prevented the database from starting at all. |
+| ES-01 | S2 | `elasticsearch/native/.../ElasticSearchDataContext.java`, `elasticsearch/rest/.../ElasticSearchRest{Client,DataContext}.java` | **The Elasticsearch 7.17 client API moved four things** that 7.3.1 had in different places: `ClusterState.getMetaData()` → `getMetadata()` (the return type `MetaData` became `Metadata`), `IndexMetaData`/`MappingMetaData` → `IndexMetadata`/`MappingMetadata`, `org.elasticsearch.common.unit.TimeValue` → `org.elasticsearch.core.TimeValue`, and the xcontent classes moved from `org.elasticsearch.common.xcontent` to `org.elasticsearch.xcontent`. The last one also changed the **high level REST client's behaviour**: it now validates the server version with a `GET /` before the first real request, and checks the `X-Elastic-Product` response header. | **Fixed** — the API moves are applied, and the REST client's mock in `ElasticSearchRestDataSetTest` was rewritten to answer the version-validation request with a real main-response body, while still asserting that exactly one clear-scroll request is performed. |
 
 ---
 
@@ -172,6 +175,18 @@ Full inventory, methodology, scope triage and the deferred-upgrade rationale are
 artifacts**; **167 advisories affect the 48 coordinates MetaModel pins directly**.
 23 dependency upgrades were applied and re-verified against OSV before pinning, and the
 reactor build was re-run afterwards.
+
+### 6.0 Build defects found while upgrading to the latest JDK
+
+Upgrading the build to run on **Temurin 25.0.4.1+1 (LTS)** exposed four defects that
+had been invisible on the JDK 21 toolchain the project was previously verified against:
+
+| ID | Sev | Defect | Status |
+|---|---|---|---|
+| BUILD-01 | **S1** | **JDK 24 removed the SecurityManager permanently** (JEP 486), and `-Djava.security.manager=allow` no longer works — the forked test JVM aborts with *"A command line option has attempted to allow or enable the Security Manager"*, taking the **whole test run** with it. The Elasticsearch 7.x test framework installs a SecurityManager in its static initialiser. | **Fixed** — the test JVM now uses the framework's own switch, `-Dtests.security.manager=false`, which every JDK from 9 onwards honours. The embedded Elasticsearch node now starts on JDK 25. |
+| BUILD-02 | **S1** | **EasyMock 5.2.0 cannot generate a class on JDK 25** (`IllegalArgumentException: Could not create type` from its shaded ByteBuddy), so the 15 dialect-rewriter tests that EasyMock 3.2 had silently broken on JDK 17+ failed again on the newest JDK. | **Fixed** — EasyMock 5.7.0 bundles a ByteBuddy that supports class file version 69. |
+| BUILD-03 | S2 | **`maven-compiler-plugin:3.7.0` predates `--release`.** With `source`/`target` only, the compiler links against the API of whatever JDK runs the build — so code could call a Java 9+ API, still compile, and produce a class file that throws `NoSuchMethodError` on a real Java 8 runtime. The project claimed Java 8 compatibility without enforcing it. | **Fixed** — the compiler plugin is now 3.13.0 and uses `maven.compiler.release=8`, so the Java 8 API signatures are enforced at compile time. The whole tree compiles unchanged under it, which confirms the claim. |
+| BUILD-04 | S2 | **The `full` package shipped duplicate classes.** The `javax.*` classes that the `jakarta.*`-named artifacts ship under the old namespace (`jakarta.xml.bind-api` vs `jaxb-api`, `jakarta.activation-api` vs `javax.activation-api`), plus multi-release `module-info.class` and empty `package-info` markers, were flagged by the duplicate-class check. `hbase-client` also dragged in `hadoop-auth:2.10.0` next to `hadoop-common:3.4.1`. | **Fixed** — `hadoop-auth` is pinned to the Hadoop line, and the remaining benign duplicates are declared in `full/tattletale-filters.properties` with the reason for each. |
 
 The largest single item — `jackson-databind` 2.10.1 with 86 advisories — is analysed
 in full in `SUPPLY-CHAIN.md` §4, including why it is **not reachable** through

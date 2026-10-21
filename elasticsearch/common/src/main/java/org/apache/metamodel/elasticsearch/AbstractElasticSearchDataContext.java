@@ -34,7 +34,7 @@ import org.apache.metamodel.schema.MutableSchema;
 import org.apache.metamodel.schema.MutableTable;
 import org.apache.metamodel.schema.Schema;
 import org.apache.metamodel.util.SimpleTableDef;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 public abstract class AbstractElasticSearchDataContext extends QueryPostprocessDataContext implements DataContext,
         UpdateableDataContext {

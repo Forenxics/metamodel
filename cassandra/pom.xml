@@ -20,7 +20,7 @@
 	<name>MetaModel module for Apache Cassandra database</name>
 
 	<properties>
-		<cassandra.driver.latest.version>3.6.0</cassandra.driver.latest.version>
+		<cassandra.driver.latest.version>3.11.5</cassandra.driver.latest.version>
 		<cassandraunit.latest.version>3.5.0.1</cassandraunit.latest.version>
 	</properties>
 

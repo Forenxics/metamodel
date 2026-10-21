@@ -48,8 +48,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -135,12 +135,12 @@ public class ElasticSearchDataContext extends AbstractElasticSearchDataContext {
         
         final List<SimpleTableDef> result = new ArrayList<>();
 
-        final IndexMetaData imd = cs.getMetaData().index(indexName);
+        final IndexMetadata imd = cs.getMetadata().index(indexName);
         if (imd == null) {
             // index does not exist
             logger.warn("No metadata returned for index name '{}' - no tables will be detected.");
         } else {
-            final ImmutableOpenMap<String, MappingMetaData> mappings = imd.getMappings();
+            final ImmutableOpenMap<String, MappingMetadata> mappings = imd.getMappings();
             final ObjectLookupContainer<String> documentTypes = mappings.keys();
             for (final ObjectCursor<?> documentTypeCursor : documentTypes) {
                 final String documentType = documentTypeCursor.value.toString();
@@ -170,13 +170,13 @@ public class ElasticSearchDataContext extends AbstractElasticSearchDataContext {
      */
     public static SimpleTableDef detectTable(ClusterState cs, String indexName, String documentType) throws Exception {
         logger.debug("Detecting table for document type '{}' in index '{}'", documentType, indexName);
-        final IndexMetaData imd = cs.getMetaData().index(indexName);
+        final IndexMetadata imd = cs.getMetadata().index(indexName);
         if (imd == null) {
             // index does not exist
             throw new IllegalArgumentException("No such index: " + indexName);
         }
-        final ImmutableOpenMap<String, MappingMetaData> mappings = imd.getMappings();
-        final MappingMetaData mappingMetaData = mappings.get(documentType);
+        final ImmutableOpenMap<String, MappingMetadata> mappings = imd.getMappings();
+        final MappingMetadata mappingMetaData = mappings.get(documentType);
         if (mappingMetaData == null) {
             throw new IllegalArgumentException("No such document type in index '" + indexName + "': " + documentType);
         }

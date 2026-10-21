@@ -21,15 +21,23 @@ under the License.
 	<modelVersion>4.0.0</modelVersion>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<sshwagon.version>2.6</sshwagon.version>
-		<javadoc.version>2.10.3</javadoc.version>
+		<sshwagon.version>3.5.3</sshwagon.version>
+		<javadoc.version>3.6.3</javadoc.version>
+		<!--
+			Default value for the surefire argLine. JaCoCo's prepare-agent goal
+			overrides this property with the -javaagent flag; the surefire
+			configuration references it as "@{argLine}" so that the agent is
+			never lost, and this empty default keeps "@{argLine}" valid when
+			JaCoCo is skipped.
+		-->
+		<argLine></argLine>
 		<slf4j.version>1.7.36</slf4j.version>
 		<junit.version>4.13.2</junit.version>
 		<guava.version>32.1.3-jre</guava.version>
-		<hadoop.version>3.1.1</hadoop.version>
+		<hadoop.version>3.4.1</hadoop.version>
 		<jackson.version>2.17.3</jackson.version>
-		<easymock.version>5.2.0</easymock.version>
-		<spring.version>5.2.2.RELEASE</spring.version>
+		<easymock.version>5.7.0</easymock.version>
+		<spring.version>5.3.39</spring.version>
 		<httpcomponents.version>4.5.14</httpcomponents.version>
 		<httpcore.version>4.4.16</httpcore.version>
 		<docker-maven-plugin.version>0.23.0</docker-maven-plugin.version>
@@ -205,12 +213,21 @@ under the License.
 	<build>
 		<plugins>
 			<plugin>
-				<!-- Ensures java 8 compatibility -->
+				<!--
+					Ensures java 8 compatibility.
+
+					"release" (rather than source/target) is used deliberately: it
+					compiles against the Java 8 API signatures, not against the API
+					of whatever JDK happens to run the build. With source/target
+					only, code could call a Java 9+ API and still compile
+					successfully on a modern JDK, producing a class file that
+					fails with NoSuchMethodError on a real Java 8 runtime.
+				-->
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.13.0</version>
 				<configuration>
-					<source>1.8</source>
-					<target>1.8</target>
+					<release>8</release>
 					<encoding>utf-8</encoding>
 				</configuration>
 			</plugin>
@@ -247,18 +264,39 @@ under the License.
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
+				<version>3.2.5</version>
 			</plugin>
 
 			<plugin>
-				<groupId>org.codehaus.sonar</groupId>
+				<groupId>org.sonarsource.scanner.maven</groupId>
 				<artifactId>sonar-maven3-plugin</artifactId>
-				<version>2.8</version>
+				<version>3.11.0</version>
 			</plugin>
 
 			<plugin>
-				<groupId>org.codehaus.mojo</groupId>
-				<artifactId>cobertura-maven-plugin</artifactId>
-				<version>2.5.2</version>
+				<!--
+					Replaces cobertura-maven-plugin, which was declared but never
+					bound to a lifecycle phase and cannot run on any JDK newer
+					than 9 anyway. JaCoCo is the maintained successor.
+				-->
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>0.8.15</version>
+				<executions>
+					<execution>
+						<id>prepare-agent</id>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>report</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 
 			<plugin>
@@ -297,6 +335,7 @@ under the License.
 				<!-- enforce certain banned dependencies -->
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-enforcer-plugin</artifactId>
+				<version>3.4.1</version>
 				<executions>
 					<execution>
 						<id>enforce-versions</id>
@@ -537,9 +576,9 @@ under the License.
 				<version>${httpcomponents.version}</version>
 			</dependency>
 			<dependency>
-				<groupId>commons-lang</groupId>
-				<artifactId>commons-lang</artifactId>
-				<version>2.6</version>
+				<groupId>org.apache.commons</groupId>
+				<artifactId>commons-lang3</artifactId>
+				<version>3.18.0</version>
 			</dependency>
 			<dependency>
 				<groupId>commons-codec</groupId>
@@ -602,6 +641,14 @@ under the License.
 				</exclusions>
 			</dependency>
 			<dependency>
+				<!--
+					HSQLDB stays on the 1.8 line on purpose. The 2.x line removed the
+					"res:" script mechanism ("Database does not exists: /metamodel")
+					that MetaModel's 1 MB metamodel.script test fixture is loaded
+					through, and 1.8.0.10 carries no known advisories, so the upgrade
+					would cost a test-fixture rewrite for no security benefit.
+					See docs/SUPPLY-CHAIN.md section 5.
+				-->
 				<groupId>hsqldb</groupId>
 				<artifactId>hsqldb</artifactId>
 				<version>1.8.0.10</version>
@@ -691,6 +738,17 @@ under the License.
 				</exclusions>
 			</dependency>
 			<dependency>
+				<!--
+					HBase 2.4 still asks for hadoop-auth 2.10. Pinning it to the
+					Hadoop line keeps a single version of the authentication API
+					on the classpath, and removes a duplicate-class finding in the
+					"full" package.
+				-->
+				<groupId>org.apache.hadoop</groupId>
+				<artifactId>hadoop-auth</artifactId>
+				<version>${hadoop.version}</version>
+			</dependency>
+			<dependency>
 				<groupId>org.apache.hadoop</groupId>
 				<artifactId>hadoop-common</artifactId>
 				<version>${hadoop.version}</version>
@@ -698,6 +756,16 @@ under the License.
 					<exclusion>
 						<groupId>jdk.tools</groupId>
 						<artifactId>jdk.tools</artifactId>
+					</exclusion>
+					<exclusion>
+						<!--
+							Hadoop pulls in javax.xml.stream:stax-api:1.0-2, a 2007-era
+							artifact that conflicts with the StAX implementation built
+							into the JDK. The Apache parent POM bans it outright, and the
+							JDK's own implementation is used instead.
+						-->
+						<groupId>javax.xml.stream</groupId>
+						<artifactId>stax-api</artifactId>
 					</exclusion>
 					<exclusion>
 						<groupId>org.slf4j</groupId>
@@ -851,14 +919,27 @@ under the License.
 								needed because EasyMock 4 and later mock classes by
 								generating bytecode and therefore have to reflect into
 								java.lang.
-								The "java.security.manager=allow" system property is
+								The "tests.security.manager=false" system property is
 								needed because the Elasticsearch 7.x test framework
-								installs a SecurityManager in its static initialiser,
-								which JDK 18 and later forbid unless it is explicitly
-								re-enabled.
-								Both only exist from Java 9 onwards, hence the profile.
+								installs a SecurityManager in its static initialiser.
+								That was merely deprecated in JDK 17 and permanently
+								removed in JDK 24 (JEP 486), where even
+								"-Djava.security.manager=allow" no longer works and the
+								forked test JVM refuses to start. The Elasticsearch
+								framework's own property skips the installation, and is
+								honoured by every JDK from 9 onwards.
+								The derby.locks.* properties bound how long a
+								transaction waits for a lock and how long the
+								deadlock detector takes to notice a cycle. Derby's
+								defaults (30s and 20s) made the concurrency test in
+								the jdbc module take three minutes on JDK 25 and forty
+								seconds on JDK 21, depending purely on thread timing.
+								These have to be *system* properties - setting them
+								per connection has no effect.
+								All of these only exist from Java 9 onwards, hence
+								the profile.
 							-->
-							<argLine>--add-opens java.base/java.lang=ALL-UNNAMED -Djava.security.manager=allow</argLine>
+							<argLine>@{argLine} --add-opens java.base/java.lang=ALL-UNNAMED -Dtests.security.manager=false</argLine>
 						</configuration>
 					</plugin>
 				</plugins>

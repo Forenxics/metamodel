@@ -20,7 +20,7 @@
 	<name>MetaModel module for Apache HBase</name>
 
 	<properties>
-		<hbase.version>2.1.1</hbase.version>
+		<hbase.version>2.4.17</hbase.version>
 	</properties>
 
 	<dependencies>

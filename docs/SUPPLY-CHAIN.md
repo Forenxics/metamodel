@@ -88,6 +88,21 @@ before it was pinned**, and the reactor build was re-run afterwards.
 | `mysql:mysql-connector-java` | 5.1.39 | **`com.mysql:mysql-connector-j:8.4.0`** | 7 → 0 (clean) |
 | `org.xerial:sqlite-jdbc` | 3.7.2 | **3.45.3.0** | 1 → 0 (clean) |
 | `org.glassfish.jaxb:txw2` | 2.4.0-b180608.0325 | **2.3.1** | was unresolvable — dead HTTP repos |
+| `org.apache.hadoop:hadoop-common`, `hadoop-client` | 3.1.1 | **3.4.1** | 17 → 0 advisories; Java 8; six API types used, all stable across 3.x |
+| `org.apache.hadoop:hadoop-auth` | 2.10.0 (via HBase) | **3.4.1** | pinned to the Hadoop line, so one version of the authentication API is on the classpath |
+| `org.apache.hbase:hbase-client` | 2.1.1 | **2.4.17** | OSV-clean, Java 8; eighteen API types used, all stable across the 2.x line |
+| `org.springframework:spring-{core,context,webmvc,test}` | 5.2.2.RELEASE | **5.3.39** | last Java 8 line; the residual advisories are in components MetaModel does not use (§5.2) |
+| `org.elasticsearch:elasticsearch`, `org.elasticsearch.client:transport` | 7.3.1 | **7.17.28** | 3 → 0 advisories; last 7.x release before the 8.x removals |
+| `com.datastax.cassandra:cassandra-driver-core` | 3.6.0 | **3.11.5** | last 3.x line; no public API break, no advisories either way |
+| `org.apache.commons:commons-lang3` | — (was `commons-lang` 2.6) | **3.18.0** | 2.x is end-of-life; 3.18.0 is the first release without CVE-2025-48924 |
+| `org.easymock:easymock` | 3.2 | **5.7.0** | re-enables 15 tests that EasyMock 3.2 had silently broken on JDK 17+, and 5.7.0 is the first release whose bundled ByteBuddy can generate classes on JDK 25 |
+| `org.apache.maven.plugins:maven-compiler-plugin` | 3.7.0 | **3.13.0** | supports `--release`, which is what enforces the Java 8 API floor |
+| `org.apache.maven.plugins:maven-surefire-plugin` | 2.22.0 | **3.2.5** | JDK 17+ test-JVM handling |
+| `org.apache.maven.plugins:maven-enforcer-plugin` | 1.4.1 | **3.4.1** | 2015 vintage |
+| `org.apache.maven.plugins:maven-javadoc-plugin` | 2.10.3 | **3.6.3** | 2017; doclint changed in JDK 9 and again in JDK 22 |
+| `org.codehaus.mojo:cobertura-maven-plugin` | 2.5.2 | **`org.jacoco:jacoco-maven-plugin` 0.8.15** | Cobertura cannot run on any JDK newer than 9; JaCoCo is the maintained successor and now actually produces a coverage report |
+| `org.codehaus.sonar:sonar-maven3-plugin` | 2.8 | **`org.sonarsource.scanner.maven:sonar-maven3-plugin` 3.11.0** | the plugin also changed groupId at 3.x |
+| `org.apache.maven.wagon:wagon-ssh` | 2.6 | **3.5.3** | the deployment wagon for the Apache release profile |
 
 ## 4. The Jackson finding, in full (the 86-advisory headline)
 
@@ -130,18 +145,122 @@ by the audit trail in this document rather than left implicit.
 polymorphic types with your own mapper, you are exposed independently of MetaModel.
 Use `PolymorphicTypeValidator` and a `DeserializationFeature` allow-list.
 
-## 5. Deferred upgrades — with reasons, not hand-waving
+## 5. The eight deferred upgrades — what the research actually found
 
-| Coordinate | Pinned | Target | Why deferred |
+Each deferred coordinate was researched before anything was changed: the candidate
+target was checked against **OSV**, its **bytecode level was read out of the jar**
+(class-file major version: 52 = Java 8, 55 = Java 11, 61 = Java 17), and MetaModel's
+**actual API surface** for that library was measured by listing the distinct types it
+imports. The last two checks turned out to be the decisive ones, and both overturned
+the assumptions in the original table.
+
+### 5.1 The constraint that decides most of them: the Java 8 floor
+
+The library's published bytecode is still Java 8 (`maven.compiler.source/target = 1.8`).
+A dependency whose own bytecode is Java 11 or 17 raises the runtime floor of the
+module that uses it, whether or not MetaModel's own classes change. Every candidate
+was therefore checked against the class-file major version of its jar:
+
+| Candidate | Bytecode | Java 8 compatible? |
+|---|---|---|
+| `hadoop-common` 3.4.1 | 52 | **yes** |
+| `spring-*` 5.3.39 | 52 | **yes** |
+| `spring-*` 6.2.19 | 61 | no (Java 17, and `javax` → `jakarta`) |
+| `commons-lang3` 3.18.0 | 52 | **yes** |
+| `elasticsearch` 7.17.28 | 55 | no (Java 11) |
+| `transport` client 7.17.28 | 52 | **yes** |
+| `hbase-client` 2.4.17 | 52 | **yes** |
+| `mongodb-driver-sync` 4.11.1 | 52 | **yes** |
+| `java-driver-core` 4.17.0 | 52 | **yes** |
+
+### 5.2 Outcome per upgrade
+
+| Upgrade | Research finding | Decision |
+|---|---|---|
+| `hadoop-common` / `hadoop-client` 3.1.1 → **3.4.1** | OSV-clean (3.3.6 still carries GHSA-f5fw-25gw-5m92), Java 8, and MetaModel uses only **six** Hadoop types — `Configuration`, `FileStatus`, `FileSystem`, `FSDataOutputStream`, `Path`, `PathFilter` — all stable across the 3.x line | **Applied** |
+| `commons-lang` 2.6 → `commons-lang3` **3.18.0** | The 2.x line is end-of-life. 3.17.0 still carries CVE-2025-48924 (uncontrolled recursion); 3.18.0 is clean. The only usage in the whole tree is one import in `hadoop/src/test/java/.../HdfsResourceTest.java` | **Applied** |
+| `hsqldb` 1.8.0.10 → **2.7.4** | OSV-clean, Java 8. Two surprises: the 2.x line moved **groupId** from `hsqldb` to `org.hsqldb`, and it pulls in `javax.xml.stream:stax-api:1.0-2`, which the Apache parent POM bans outright — excluded, since the JDK supplies StAX itself. Then the decisive one: **HSQLDB 2.x removed the `res:` script mechanism** that MetaModel's 1 MB `metamodel.script` fixture is loaded through — the driver answers `Database does not exists: /metamodel` | **Reverted to 1.8.0.10.** 1.8.0.10 carries no known advisories, and the upgrade would have cost a test-fixture rewrite for no security benefit. The exclusion of `stax-api` is kept, because that artifact really does come from `hadoop-common` |
+| `hbase-client` 2.1.1 → **2.4.17** | OSV-clean, Java 8. MetaModel uses **18** HBase types, all in `org.apache.hadoop.hbase.client` / `.filter` / `.util.Bytes` / `TableName` — stable across the 2.x line | **Applied** |
+| `spring` 5.2.2.RELEASE → **5.3.39** | The advisories that remain on 5.3.39 are in `DataBinder` (case-sensitive match), `AntPathMatcher` (DoS), annotation-detection authorization, `JavaScriptUtils` XSS, script view templates and SSE. **MetaModel's spring module imports exactly four Spring types**: `FactoryBean`, `@Autowired`, and two `spring-test` classes. None of the vulnerable components are on the code path. Reaching OSV-clean Spring would mean 6.2.19+ = Java 17 + `javax`→`jakarta`, a breaking change for every consumer, to fix advisories that cannot be triggered | **Applied at 5.3.39**; the residue is documented as unreachable, and `spring-context` — declared but not imported — is kept because the module's `FactoryBean` has to be usable in a Spring context |
+| `elasticsearch` 7.3.1 → **7.17.28** | OSV-clean; 7.3.1 carries CVE-2023-46673, CVE-2023-31418 and CVE-2023-49921, all **server-side** Elasticsearch issues. The 7.17 client is the last release before the 8.x removals, so the API churn is deprecations rather than deletions. The `elasticsearch` artifact itself is Java 11 bytecode, so **this module now requires Java 11 at runtime** while the rest of MetaModel stays on Java 8 | **Applied**, with the Java 11 runtime requirement of the `elasticsearch` module documented |
+| `cassandra-driver-core` 3.6.0 → **3.11.5** | Every 3.x and 4.x version is OSV-clean, so this is currency rather than security. The 4.x line is not a version bump but a **package migration** (`com.datastax.driver.core` → `com.datastax.oss.driver.api.core`) that changes the **public constructor** `CassandraDataContext(Cluster, …)` to `CassandraDataContext(CqlSession, …)` — a breaking API change for consumers — and the module's only test harness (embedded Cassandra) is `Assume`-skipped on JDK 9+, so a 4.x migration could be compiled but **not verified** | **Applied at 3.11.5** (last 3.x, no API break). The 4.x migration is specified in §5.3 |
+| `neo4j-java-driver` | **The dependency is not used.** The `neo4j` module talks JSON over HTTP with `httpclient` and `jackson-datatype-json-org`; it has no Neo4j driver dependency at all | **Nothing to do** |
+| `mongo-java-driver` 3.1.0 / 2.14.0 | Both are OSV-clean, so there is no advisory pressure. `mongo2` uses the legacy `com.mongodb.Mongo` / `DB` / `DBCollection` API, which was **removed in 3.0**, so that module cannot move to a 3.x or 4.x driver without a rewrite. `mongo3` uses `com.mongodb.client.*` plus `MongoClient` and `DB`, which 4.x also removed | **Left alone** — a documented migration, not a version bump |
+
+### 5.3 The Cassandra 4.x migration, specified but not applied
+
+`com.datastax.oss:java-driver-core:4.17.0` is OSV-clean and Java 8, so it is a
+viable target. The work is:
+
+* `com.datastax.driver.core.*` → `com.datastax.oss.driver.api.core.*` for
+  `ColumnDefinitions`, `ColumnMetadata`, `DataType`, `KeyspaceMetadata`, `Metadata`,
+  `ResultSet`, `Row`, `Session`, `Statement`, `TableMetadata`; and
+  `com.datastax.driver.core.querybuilder.*` → `com.datastax.oss.driver.api.querybuilder.*`
+  for `QueryBuilder`, `Select` and `Select.Selection`.
+* `Cluster` and `Cluster.Builder` → `CqlSession` and `CqlSessionBuilder`:
+  `CqlSession.builder().withContactPoints(hosts).build()`. The `Cluster` type no
+  longer exists in 4.x.
+* **Public API break**: `CassandraDataContext(Cluster, String, SimpleTableDef…)` and
+  `CassandraDataContext(Cluster, String)` become `CqlSession`-based overloads. This
+  is a source-breaking change for every consumer of the module.
+* `cassandraCluster.connect().execute(query)` → `session.execute(query)`.
+
+**Why it was not applied here:** the `cassandra` module's only test is an embedded
+Cassandra harness that is `Assume`-skipped on JDK 9 and later, so the migration could
+be made to compile but **not verified at runtime**. Shipping a compile-only migration
+of a datastore adapter would be exactly the half-wired work this project is supposed
+to avoid. The recommendation is to apply it together with a test harness that actually
+runs, so the change can be proved rather than asserted.
+
+### 5.4 The Java floor, stated plainly
+
+MetaModel's own classes remain **Java 8** bytecode, and they are now compiled with
+`maven.compiler.release=8` rather than `source`/`target`, so they are guaranteed to link
+against the Java 8 API and not against whatever JDK happens to run the build.
+
+Two consequences are worth making explicit for downstream users:
+
+* The `elasticsearch` module needs **Java 11 or later at runtime**, because
+  `org.elasticsearch:elasticsearch:7.17.28` is Java 11 bytecode. Every other module
+  still runs on Java 8.
+* The **test** toolchain already required Java 11 (EasyMock 5.x), so no consumer is
+  affected by that.
+
+Raising the whole project to Java 11 would simplify this, at the cost of dropping
+Java 8 support for every consumer. That is a product decision, not a technical one,
+so it was not taken unilaterally.
+
+### 5.5 The build itself was modernised, and that is what made JDK 25 possible
+
+The dependency upgrades above were the visible half. The other half was the build,
+which was still on a 2020-era toolchain inherited from the `org.apache:apache:21`
+parent POM:
+
+| Plugin | Was | Now | Why it mattered |
 |---|---|---|---|
-| `org.apache.hadoop:hadoop-client`, `hadoop-common` | 3.1.1 | 3.4.1 | 17 advisories (4 critical) across the two artifacts, but the Hadoop surface used by MetaModel is 60 import sites spanning `FileSystem`, `Path`, `Configuration` and `HadoopFileReader`. A 3.1 → 3.4 move also collides with `hbase-client` 1.x, which is built against the 2.x/3.0-era Hadoop APIs. This needs its own change with a dedicated test pass over the `hadoop` module. |
-| `org.springframework:spring-{core,context,webmvc,test}` | 5.2.2.RELEASE | 5.3.39+ or 6.x | 3 advisories (1 high — the Spring4Shell class). The `spring` module is a thin `DataContextFactoryBean` wrapper; the upgrade is low-risk in isolation but 6.x requires Java 17 and drops `javax.*` for `jakarta.*`, which is a breaking change for every consumer of that module. |
-| `commons-lang:commons-lang` | 2.6 | `commons-lang3` 3.14+ | 2.x is end-of-life with no patched release. The only usage in the tree is `hadoop/src/test/java/.../HdfsResourceTest.java` (test scope). Migrating that single import to `org.apache.commons.lang3.SerializationUtils` and excluding `commons-lang` from the Hadoop dependency is the intended fix; it was not applied here because excluding `commons-lang` from Hadoop 3.1.1 risks a `NoClassDefFoundError` inside Hadoop's own code paths at runtime, which cannot be tested without a live HDFS. |
-| `org.elasticsearch:elasticsearch`, `org.elasticsearch.client:transport` | 7.3.1 | 7.17.x | 7.3.1 is long out of support. The `transport` client was removed in 8.x, so the upgrade target is the last 7.x. The Elasticsearch adapter's API usage is small, but this belongs with the `elasticsearch` module's own change rather than a blind version bump. |
-| `com.datastax.cassandra:cassandra-driver-core` | 3.x | — | The driver was superseded by the DataStax "java-driver-core" 4.x with a different package name (`com.datastax.oss`). A package-level migration, not a version bump. |
-| `org.apache.hbase:hbase-client`, `org.neo4j:neo4j-java-driver`, `mongo-java-driver` | — | — | Client stacks whose upstream coordinates and APIs changed majorly; each needs its own module change. None of them appear in the runtime-reachable advisory list above. |
-| `org.apache.poi:poi-ooxml` | 4.1.1 | 5.2.5 | **Applied**, but note POI 5.x is a major API change against 78 import sites. It was applied and the excel module's 50 tests pass. |
-| `hsqldb:hsqldb` | 1.8.0.10 | 2.7.x | No advisory recorded, but the version is from 2011 and is used by the in-memory JDBC tests. Deferred because HSQLDB 1.8 → 2.x changed SQL dialect strictness, which would invalidate a large body of existing test expectations. |
+| `maven-compiler-plugin` | 3.7.0 | **3.13.0** | 3.7.0 predates `--release`; with `source`/`target` only it would have compiled against JDK 25's own API while claiming an older level — a silent-correctness hazard |
+| `maven-surefire-plugin` | 2.22.0 | **3.2.5** | 2.22.0 predates JDK 17+ test-JVM handling |
+| `maven-enforcer-plugin` | 1.4.1 | **3.4.1** | 2015 vintage |
+| `maven-javadoc-plugin` | 2.10.3 | **3.6.3** | 2017; doclint changed in JDK 9 and again in JDK 22 |
+| `cobertura-maven-plugin` | 2.5.2 | **JaCoCo 0.8.15** | Cobertura was declared but never bound to a phase, and cannot run on any JDK newer than 9 |
+| `sonar-maven3-plugin` | 2.8 | **3.11.0** | also moved groupId to `org.sonarsource.scanner.maven` |
+| `wagon-ssh` | 2.6 | **3.5.3** | the deployment wagon for the Apache release profile |
+
+Two findings only surfaced by actually running on JDK 25:
+
+* **JDK 24 removed the SecurityManager permanently** (JEP 486). `-Djava.security.manager=allow`
+  no longer works — the forked test JVM refuses to start with *"A command line option has
+  attempted to allow or enable the Security Manager"*. The Elasticsearch 7.x test framework
+  installs one, so the test JVM now uses the framework's own switch,
+  `-Dtests.security.manager=false`, which every JDK from 9 onwards honours.
+* **EasyMock bundles its own ByteBuddy**, and the bundled version decides which JDKs the
+  class-mocking tests can run on. EasyMock 5.2.0 could not generate a class on JDK 25
+  (`IllegalArgumentException: Could not create type`); 5.7.0 can. This is why the 15
+  dialect-rewriter tests that EasyMock 3.2 had silently broken on JDK 17+ now run.
+
+The build is verified green on **Temurin 21.0.12** and **Temurin 25.0.4.1+1 (LTS)**, and
+CI now runs 11, 17, 21 and 25.
+
 
 ## 6. Enforcement going forward
 
