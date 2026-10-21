@@ -20,10 +20,10 @@ package org.apache.metamodel.util;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InvalidClassException;
 import java.io.ObjectInputStream;
 import java.io.ObjectStreamClass;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.Comparator;
 
 import org.apache.metamodel.query.AggregateFunction;
@@ -37,8 +37,23 @@ import org.slf4j.LoggerFactory;
 /**
  * A specialized {@link ObjectInputStream} for MetaModel which can be used or
  * extended if it is needed to deserialize legacy MetaModel objects. This is
- * needed since the namespace of MetaModel was changed from org.apache.metamodel
+ * needed since the namespace of MetaModel was changed from org.eobjects.metamodel
  * to org.apache.metamodel.
+ * <p>
+ * In addition to the namespace change, a few MetaModel types changed shape over
+ * time: {@link OperatorType}, {@link FunctionType} and {@link ColumnType} used to
+ * be enums and are now interfaces backed by implementation classes. Streams that
+ * were written while they were still enums are bound to the legacy enum
+ * implementations declared in this class, so that the deserialized objects keep
+ * working with the modern, interface-based API.
+ * <p>
+ * <b>Security note:</b> deserialization is only safe for streams you trust. This
+ * class resolves classes from the stream, so a hostile stream can attempt to
+ * instantiate arbitrary types. To limit that, {@link #isAllowedClass(String)}
+ * rejects classes outside the MetaModel and JDK namespaces by default; override
+ * that method if a legacy stream legitimately contains other types. On Java 9 and
+ * later you can additionally install a
+ * {@link java.io.ObjectInputFilter} on the stream.
  */
 public class LegacyDeserializationObjectInputStream extends ObjectInputStream {
 
@@ -214,6 +229,9 @@ public class LegacyDeserializationObjectInputStream extends ObjectInputStream {
     }
 
     private static final String OLD_CLASS_NAME_COLUMN_TYPE = "org.eobjects.metamodel.schema.ColumnType";
+    private static final String OLD_CLASS_NAME_OPERATOR_TYPE = "org.eobjects.metamodel.query.OperatorType";
+    private static final String OLD_CLASS_NAME_FUNCTION_TYPE = "org.eobjects.metamodel.query.FunctionType";
+    private static final String CLASS_NAME_COLUMN_TYPE = "org.apache.metamodel.schema.ColumnType";
     private static final String CLASS_NAME_OPERATOR_TYPE = "org.apache.metamodel.query.OperatorType";
     private static final String CLASS_NAME_FUNCTION_TYPE = "org.apache.metamodel.query.FunctionType";
 
@@ -221,18 +239,63 @@ public class LegacyDeserializationObjectInputStream extends ObjectInputStream {
         super(in);
     }
 
+    /**
+     * Determines whether a class descriptor read from the stream described an
+     * enum.
+     * <p>
+     * The JDK enforces two invariants for enum descriptors when it reads them
+     * (see {@code ObjectStreamClass.readNonProxy}): an enum descriptor must carry
+     * a serialVersionUID of zero and must declare no fields. Both values are
+     * readable through the public {@link ObjectStreamClass} API, so they can be
+     * used to recognise an enum descriptor without reflecting into JDK-internal
+     * state - which is not permitted since Java 9 (JEP 403) and was never
+     * portable between JDK versions anyway.
+     *
+     * @param desc
+     *            a class descriptor as read from the stream
+     * @return true if the stream described the class as an enum
+     */
+    private static boolean isEnumDescriptor(ObjectStreamClass desc) {
+        return desc.getSerialVersionUID() == 0L && desc.getFields().length == 0;
+    }
+
+    /**
+     * Determines whether a class may be deserialized by this stream.
+     * <p>
+     * By default only classes from the MetaModel namespaces and from the JDK
+     * itself are allowed. Override this method to widen or narrow that set if a
+     * legacy stream legitimately contains other types.
+     *
+     * @param className
+     *            the fully qualified name of the class as it appears in the stream
+     * @return true if the class may be deserialized
+     */
+    protected boolean isAllowedClass(String className) {
+        String name = className;
+        while (name.startsWith("[")) {
+            // strip array dimensions
+            name = name.substring(1);
+        }
+        if (name.startsWith("L") && name.endsWith(";")) {
+            // strip the object type signature of an array
+            name = name.substring(1, name.length() - 1);
+        }
+        return name.startsWith("org.apache.metamodel.")
+                || name.startsWith("org.eobjects.metamodel.")
+                || name.startsWith("java.")
+                || name.startsWith("javax.")
+                || name.startsWith("org.w3c.dom.")
+                || name.startsWith("org.xml.sax.");
+    }
+
     @Override
     protected Class<?> resolveClass(ObjectStreamClass desc) throws IOException, ClassNotFoundException {
         final String className = desc.getName();
+        if (!isAllowedClass(className)) {
+            throw new InvalidClassException(className, "deserialization of this class is not allowed");
+        }
         if (className.startsWith("org.eobjects.metamodel") || className.startsWith("[Lorg.eobjects.metamodel")) {
-            final String newClassName;
-            if (OLD_CLASS_NAME_COLUMN_TYPE.equals(className)) {
-                // since ColumnType was changed from enum to interface, there's
-                // some special treatment here.
-                newClassName = LegacyColumnType.class.getName();
-            } else {
-                newClassName = className.replace("org.eobjects", "org.apache");
-            }
+            final String newClassName = className.replace("org.eobjects", "org.apache");
             return Class.forName(newClassName);
         }
         return super.resolveClass(desc);
@@ -242,68 +305,23 @@ public class LegacyDeserializationObjectInputStream extends ObjectInputStream {
     protected ObjectStreamClass readClassDescriptor() throws IOException, ClassNotFoundException {
         final ObjectStreamClass objectStreamClass = super.readClassDescriptor();
         final String className = objectStreamClass.getName();
-        switch (className) {
-        case OLD_CLASS_NAME_COLUMN_TYPE:
-            final ObjectStreamClass legacyColumnTypeResult = ObjectStreamClass.lookup(LegacyColumnType.class);
-            return legacyColumnTypeResult;
-        case CLASS_NAME_OPERATOR_TYPE:
-            if (isEnumExpected(objectStreamClass)) {
-                final ObjectStreamClass legacyOperatorTypeResult = ObjectStreamClass.lookup(LegacyOperatorType.class);
-                return legacyOperatorTypeResult;
+        if (isEnumDescriptor(objectStreamClass)) {
+            /*
+             * OperatorType, FunctionType and ColumnType used to be enums. A
+             * stream that describes them as an enum cannot be bound to the
+             * modern interface of the same name - the JDK rejects that with
+             * "cannot bind enum descriptor to a non-enum class". Bind them to
+             * the legacy enum implementations instead, which implement the
+             * modern interfaces.
+             */
+            if (CLASS_NAME_OPERATOR_TYPE.equals(className) || OLD_CLASS_NAME_OPERATOR_TYPE.equals(className)) {
+                return ObjectStreamClass.lookup(LegacyOperatorType.class);
+            } else if (CLASS_NAME_FUNCTION_TYPE.equals(className) || OLD_CLASS_NAME_FUNCTION_TYPE.equals(className)) {
+                return ObjectStreamClass.lookup(LegacyFunctionType.class);
+            } else if (CLASS_NAME_COLUMN_TYPE.equals(className) || OLD_CLASS_NAME_COLUMN_TYPE.equals(className)) {
+                return ObjectStreamClass.lookup(LegacyColumnType.class);
             }
-            break;
-        case CLASS_NAME_FUNCTION_TYPE:
-            if (isEnumExpected(objectStreamClass)) {
-                final ObjectStreamClass legacyOperatorTypeResult = ObjectStreamClass.lookup(LegacyFunctionType.class);
-                return legacyOperatorTypeResult;
-            }
-            break;
         }
         return objectStreamClass;
-    }
-
-    /**
-     * Method that uses the (non-public) isEnum() method of
-     * {@link ObjectStreamClass} to determine if an enum is expected.
-     * 
-     * @param objectStreamClass
-     * @return
-     */
-    private boolean isEnumExpected(ObjectStreamClass objectStreamClass) {
-        try {
-            final Field initializedField = ObjectStreamClass.class.getDeclaredField("initialized");
-            initializedField.setAccessible(true);
-            final Boolean initialized = (Boolean) initializedField.get(objectStreamClass);
-            if (!initialized) {
-                /*
-                 * Snippet from the JDK source:
-                 * 
-                 * void initNonProxy(ObjectStreamClass model,
-                 * Class<?> cl,
-                 * ClassNotFoundException resolveEx,
-                 * ObjectStreamClass superDesc)
-                 **/
-                final Method initMethod = ObjectStreamClass.class.getDeclaredMethod("initNonProxy", ObjectStreamClass.class,
-                        Class.class, ClassNotFoundException.class, ObjectStreamClass.class);
-                initMethod.setAccessible(true);
-                initMethod.invoke(objectStreamClass, objectStreamClass, null, null, null);
-            }
-        } catch (NoSuchFieldError e) {
-            logger.debug("Failed to access boolean field 'initialized' in {}", objectStreamClass.getName(), e);
-        } catch (Exception e) {
-            logger.debug("Failed to access invoke ObjectStreamClass.initialize() to prepare {}", objectStreamClass
-                    .getName(), e);
-        }
-        
-        try {
-            final Method isEnumMethod = ObjectStreamClass.class.getDeclaredMethod("isEnum");
-            isEnumMethod.setAccessible(true);
-            final Boolean result = (Boolean) isEnumMethod.invoke(objectStreamClass);
-            return result.booleanValue();
-        } catch (Exception e) {
-            logger.warn("Failed to access and invoke ObjectStreamClass.isEnum to determine if {} is an enum",
-                    objectStreamClass.getName(), e);
-        }
-        return false;
     }
 }

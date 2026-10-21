@@ -107,10 +107,23 @@ public class SugarCrmDataContext extends QueryPostprocessDataContext implements 
                 logger.debug("Logging in as '{}', with application name '{}'", username, applicationName);
                 EntryValue response = _service.login(userAuth, applicationName, new NameValueList());
                 String sessionId = response.getId();
-                logger.info("Started session with SugarCRM. Session ID: {}", sessionId);
+                logger.info(sessionStartedMessage(sessionId));
                 return sessionId;
             }
         };
+    }
+
+    /**
+     * Creates the log message that is emitted when a session has been started. The
+     * session ID is a bearer credential that grants access to the SugarCRM account, so
+     * it is redacted before the message is written to the log.
+     *
+     * @param sessionId
+     *            the session ID of the session that was started
+     * @return a log message that does not disclose the session ID
+     */
+    static String sessionStartedMessage(final String sessionId) {
+        return "Started session with SugarCRM. Session ID: " + CredentialRedactor.redact(sessionId);
     }
 
     @Override

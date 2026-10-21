@@ -60,7 +60,7 @@ public class LoggingMessageHandler implements SOAPHandler<SOAPMessageContext> {
     @Override
     public boolean handleFault(SOAPMessageContext context) {
         if (logger.isDebugEnabled()) {
-            String messageAsString = getMessageAsString(context.getMessage());
+            String messageAsString = redactPayload(getMessageAsString(context.getMessage()));
             logger.debug("Received fault message: {}", messageAsString);
         }
         return true;
@@ -72,16 +72,29 @@ public class LoggingMessageHandler implements SOAPHandler<SOAPMessageContext> {
     @Override
     public boolean handleMessage(SOAPMessageContext context) {
         if (logger.isDebugEnabled()) {
-            String messageAsString = getMessageAsString(context.getMessage());
+            String messageAsString = redactPayload(getMessageAsString(context.getMessage()));
             logger.debug("Handling message: {}", messageAsString);
         }
         return true;
     }
-    
+
+    /**
+     * Redacts the credentials and session IDs that a SOAP payload may contain, so that
+     * the payload can safely be written to a log. The SugarCRM 'login' request carries
+     * the password and the 'login' response carries the session ID.
+     *
+     * @param payload
+     *            the SOAP payload
+     * @return the payload with all secrets replaced by a mask
+     */
+    static String redactPayload(final String payload) {
+        return CredentialRedactor.redactPayload(payload);
+    }
+
     /**
      * Gets a complete SOAP message as a string (use with caution, since
      * messages can be large!)
-     * 
+     *
      * @param context
      * @return
      */

@@ -20,8 +20,10 @@ package org.apache.metamodel.query;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.metamodel.DataContext;
@@ -191,8 +193,11 @@ public class FilterItemTest extends TestCase {
 
         row = new DefaultRow(header, new Object[] { 1, 1 });
         assertTrue(c.evaluate(row));
+        // A NULL value compared against a non-null operand yields UNKNOWN in
+        // SQL three-valued logic, which means the row does not satisfy the
+        // filter. See FilterItem#evaluate(Row).
         row = new DefaultRow(header, new Object[] { null, 1 });
-        assertTrue(c.evaluate(row));
+        assertFalse(c.evaluate(row));
 
         c = new FilterItem(s1, OperatorType.GREATER_THAN, s2);
 
@@ -455,6 +460,53 @@ public class FilterItemTest extends TestCase {
 
         operand = "%foo%foo%";
         assertEquals("foo NOT LIKE '%foo%foo%'", new FilterItem(selectItem, OperatorType.NOT_LIKE, operand).toSql());
+    }
+
+    /**
+     * A row whose value is NULL must not satisfy a filter that compares it
+     * against a non-null operand. In SQL three-valued logic such a comparison
+     * evaluates to UNKNOWN, which means the row is not returned by the WHERE
+     * clause - so the in-memory evaluation must yield the same result.
+     */
+    public void testEvaluateNullRowValueFollowsThreeValuedLogic() throws Exception {
+        Column col1 = new MutableColumn("Col1", ColumnType.VARCHAR);
+        SelectItem s1 = new SelectItem(col1);
+        DataSetHeader header = new SimpleDataSetHeader(new SelectItem[] { s1 });
+
+        Row nullRow = new DefaultRow(header, new Object[] { null });
+        Row valueRow = new DefaultRow(header, new Object[] { "foo" });
+
+        assertFalse(new FilterItem(s1, OperatorType.EQUALS_TO, "foo").evaluate(nullRow));
+        assertFalse(new FilterItem(s1, OperatorType.DIFFERENT_FROM, "foo").evaluate(nullRow));
+        assertFalse(new FilterItem(s1, OperatorType.LIKE, "foo%").evaluate(nullRow));
+        assertFalse(new FilterItem(s1, OperatorType.NOT_LIKE, "foo%").evaluate(nullRow));
+        assertFalse(new FilterItem(s1, OperatorType.GREATER_THAN, "foo").evaluate(nullRow));
+        assertFalse(new FilterItem(s1, OperatorType.GREATER_THAN_OR_EQUAL, "foo").evaluate(nullRow));
+        assertFalse(new FilterItem(s1, OperatorType.LESS_THAN, "foo").evaluate(nullRow));
+        assertFalse(new FilterItem(s1, OperatorType.LESS_THAN_OR_EQUAL, "foo").evaluate(nullRow));
+
+        // ... while the operators still work for non-null values
+        assertTrue(new FilterItem(s1, OperatorType.EQUALS_TO, "foo").evaluate(valueRow));
+        assertTrue(new FilterItem(s1, OperatorType.DIFFERENT_FROM, "bar").evaluate(valueRow));
+        assertTrue(new FilterItem(s1, OperatorType.LIKE, "foo%").evaluate(valueRow));
+        assertFalse(new FilterItem(s1, OperatorType.NOT_LIKE, "foo%").evaluate(valueRow));
+    }
+
+    /**
+     * The in-memory evaluation of a LIKE filter must follow the same
+     * semantics as the SQL LIKE operator, where '_' matches exactly one
+     * character.
+     */
+    public void testEvaluateLikeWithSingleCharacterWildcard() throws Exception {
+        Column col1 = new MutableColumn("Col1", ColumnType.VARCHAR);
+        SelectItem s1 = new SelectItem(col1);
+        DataSetHeader header = new SimpleDataSetHeader(new SelectItem[] { s1 });
+
+        FilterItem filter = new FilterItem(s1, OperatorType.LIKE, "a_c");
+        assertTrue(filter.evaluate(new DefaultRow(header, new Object[] { "abc" })));
+        assertTrue(filter.evaluate(new DefaultRow(header, new Object[] { "a_c" })));
+        assertFalse(filter.evaluate(new DefaultRow(header, new Object[] { "ac" })));
+        assertFalse(filter.evaluate(new DefaultRow(header, new Object[] { "abbc" })));
     }
 
     public void testInOperandEvaluate() throws Exception {

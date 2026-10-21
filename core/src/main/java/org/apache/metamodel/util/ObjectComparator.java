@@ -73,7 +73,13 @@ public final class ObjectComparator implements Comparator<Object> {
 		if (o2 == null) {
 			return 1;
 		}
-		if (o1 instanceof Number && o1 instanceof Number) {
+		// NOTE: both operands must be taken into account here. Checking only
+		// that o1 was a number made this comparator asymmetric: compare(50,
+		// "10") was evaluated numerically while compare("10", 50) was
+		// evaluated lexicographically. That violates the contract of
+		// Comparator (compare(a,b) must be the negation of compare(b,a)), which
+		// makes sorting unstable and sorted collections behave unpredictably.
+		if (o1 instanceof Number || o2 instanceof Number) {
 			return NumberComparator.getComparator().compare(o1, o2);
 		}
 		if (TimeComparator.isTimeBased(o1) && TimeComparator.isTimeBased(o2)) {

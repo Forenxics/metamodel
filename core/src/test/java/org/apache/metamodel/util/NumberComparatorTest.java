@@ -83,10 +83,19 @@ public class NumberComparatorTest {
     public void testCompareBothNonConvertableStrings() throws Exception {
         // odd cases we don't support - but for regression here's some
         // "documentation" of it's behaviour
-        assertTrue(NumberComparator.getComparator().compare("foo", null) == 0);
         assertTrue(NumberComparator.getComparator().compare("foo", "bar") == 0);
         assertTrue(NumberComparator.getComparator().compare("foo", "") == 0);
-        assertTrue(NumberComparator.getComparator().compare(null, "bar") == 0);
+    }
+
+    @Test
+    public void testCompareNullAgainstNonConvertableValue() throws Exception {
+        // a null value is not the same thing as a value that cannot be
+        // converted to a number - null is ordered before any non-null value,
+        // consistently with the other comparators in this package.
+        assertTrue(NumberComparator.getComparator().compare(null, "bar") < 0);
+        assertTrue(NumberComparator.getComparator().compare("foo", null) > 0);
+        assertTrue(NumberComparator.getComparator().compare(null, "bar") == -NumberComparator.getComparator()
+                .compare("foo", null));
     }
 
     @Test

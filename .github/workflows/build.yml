@@ -1,0 +1,101 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+# Continuous integration for Apache MetaModel.
+#
+# Replaces the retired .travis.yml configuration. The Travis configuration
+# only ever exercised JDK 8/9/11, which is why JDK-21 specific regressions went
+# unnoticed for years - see the defect register in docs/DEFECT-REGISTER.md.
+
+name: build
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+  schedule:
+    # Weekly dependency-CVE sweep. 03:17 every Monday.
+    - cron: '17 3 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: JDK ${{ matrix.java }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: [ '11', '17', '21' ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      - name: Build and test
+        run: mvn -B -ntp clean install
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports-jdk${{ matrix.java }}
+          path: '**/target/surefire-reports/'
+          if-no-files-found: ignore
+          retention-days: 14
+
+  dependency-check:
+    name: Dependency CVE scan
+    runs-on: ubuntu-latest
+    # Only on the default branch and on the weekly schedule - the NVD feed is
+    # slow to download and rate limited.
+    if: github.event_name == 'schedule' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: OWASP dependency-check
+        continue-on-error: true
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          mvn -B -ntp org.owasp:dependency-check-maven:check \
+            -DnvdApiKey="${NVD_API_KEY}" \
+            -DfailBuildOnCVSS=7 \
+            -Dformat=HTML,SARIF \
+            -DsuppressionFile=docs/dependency-check-suppressions.xml
+
+      - name: Upload dependency-check report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: '**/dependency-check-report.html'
+          if-no-files-found: ignore
+          retention-days: 30

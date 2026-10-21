@@ -66,6 +66,19 @@ public final class NumberComparator implements Comparator<Object> {
     }
 
     public int compare(Object o1, Object o2) {
+        // null is handled before the conversion below, because a value that
+        // cannot be converted to a number is also represented by null - but a
+        // null value is not the same thing as a non-numeric value.
+        if (o1 == null && o2 == null) {
+            return 0;
+        }
+        if (o1 == null) {
+            return -1;
+        }
+        if (o2 == null) {
+            return 1;
+        }
+
         final Number n1 = toNumber(o1);
         final Number n2 = toNumber(o2);
 
@@ -87,11 +100,78 @@ public final class NumberComparator implements Comparator<Object> {
             return ((BigDecimal) n1).compareTo((BigDecimal) n2);
         }
 
+        if (requiresExactComparison(n1, n2)) {
+            final BigDecimal d1 = toBigDecimal(n1);
+            final BigDecimal d2 = toBigDecimal(n2);
+            if (d1 != null && d2 != null) {
+                return d1.compareTo(d2);
+            }
+        }
+
         if (isIntegerType(n1) && isIntegerType(n2)) {
             return Long.valueOf(n1.longValue()).compareTo(n2.longValue());
         }
 
         return Double.valueOf(n1.doubleValue()).compareTo(n2.doubleValue());
+    }
+
+    /**
+     * Determines whether two numbers should be compared with exact arithmetic
+     * instead of by converting them to doubles. A double conversion rounds
+     * values that are not exactly representable as a double (e.g. a
+     * {@link BigInteger} or a long above 2^53), which makes two distinct
+     * numbers compare as equal.
+     *
+     * @param n1
+     * @param n2
+     * @return true if the two numbers should be compared exactly
+     */
+    private static boolean requiresExactComparison(Number n1, Number n2) {
+        if (isBigType(n1) || isBigType(n2)) {
+            return true;
+        }
+        // an integer compared with a floating point number must not go through
+        // a double conversion, since that loses precision for large integers
+        return (isIntegerType(n1) && isFloatingType(n2)) || (isFloatingType(n1) && isIntegerType(n2));
+    }
+
+    private static boolean isBigType(Number n) {
+        return n instanceof BigInteger || n instanceof BigDecimal;
+    }
+
+    private static boolean isFloatingType(Number n) {
+        return n instanceof Float || n instanceof Double;
+    }
+
+    /**
+     * Converts a number to a {@link BigDecimal} without loss of precision.
+     *
+     * @param number
+     * @return a {@link BigDecimal} representation of the number, or null if the
+     *         number cannot be represented exactly (e.g. NaN or infinity).
+     */
+    private static BigDecimal toBigDecimal(Number number) {
+        if (number instanceof BigDecimal) {
+            return (BigDecimal) number;
+        }
+        if (number instanceof BigInteger) {
+            return new BigDecimal((BigInteger) number);
+        }
+        if (isIntegerType(number)) {
+            return BigDecimal.valueOf(number.longValue());
+        }
+        if (isFloatingType(number)) {
+            final double value = number.doubleValue();
+            if (Double.isNaN(value) || Double.isInfinite(value)) {
+                return null;
+            }
+            // Double.toString() gives the shortest decimal representation that
+            // round-trips to the same double, which is the value the user
+            // actually sees (unlike new BigDecimal(double), which exposes the
+            // binary representation of the double).
+            return new BigDecimal(Double.toString(value));
+        }
+        return null;
     }
 
     /**

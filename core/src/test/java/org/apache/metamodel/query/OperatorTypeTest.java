@@ -18,6 +18,9 @@
  */
 package org.apache.metamodel.query;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import junit.framework.TestCase;
 
 public class OperatorTypeTest extends TestCase {
@@ -59,5 +62,51 @@ public class OperatorTypeTest extends TestCase {
     
     public void testConvertOperatorTypeTrimmed() throws Exception {
         assertEquals(OperatorType.EQUALS_TO, OperatorTypeImpl.convertOperatorType("  =   "));
+    }
+
+    /**
+     * Verifies that {@link OperatorTypeImpl} honours the equals/hashCode
+     * contract: equal operator types must produce equal hash codes, otherwise
+     * they end up in different buckets of a {@link HashSet} or
+     * {@link java.util.HashMap}.
+     */
+    public void testEqualsAndHashCodeContract() throws Exception {
+        OperatorType op1 = new OperatorTypeImpl("=", false);
+        OperatorType op2 = new OperatorTypeImpl("=", false);
+
+        assertEquals(op1, op2);
+        assertEquals(op1.hashCode(), op2.hashCode());
+
+        Set<OperatorType> set = new HashSet<OperatorType>();
+        set.add(op1);
+        set.add(op2);
+        assertEquals(1, set.size());
+        assertTrue(set.contains(op1));
+        assertTrue(set.contains(op2));
+    }
+
+    /**
+     * All built-in operators must collapse to a single entry per operator when
+     * both the built-in constant and an equal-but-distinct instance are added
+     * to the same set.
+     */
+    public void testBuiltInOperatorsHashCodeConsistent() throws Exception {
+        Set<OperatorType> set = new HashSet<OperatorType>();
+        for (OperatorType operator : OperatorType.BUILT_IN_OPERATORS) {
+            set.add(operator);
+            set.add(new OperatorTypeImpl(operator.toSql(), operator.isSpaceDelimited()));
+        }
+        assertEquals(OperatorType.BUILT_IN_OPERATORS.length, set.size());
+    }
+
+    public void testNonEqualOperatorsAreNotCollapsed() throws Exception {
+        OperatorType op1 = new OperatorTypeImpl("=", false);
+        OperatorType op2 = new OperatorTypeImpl("=", true);
+        assertFalse(op1.equals(op2));
+
+        Set<OperatorType> set = new HashSet<OperatorType>();
+        set.add(op1);
+        set.add(op2);
+        assertEquals(2, set.size());
     }
 }

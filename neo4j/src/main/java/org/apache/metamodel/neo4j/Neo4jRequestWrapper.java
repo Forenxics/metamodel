@@ -79,8 +79,7 @@ public class Neo4jRequestWrapper {
             httpRequest.addHeader("Authorization", "Basic " + base64credentials);
         }
 
-        try {
-            final CloseableHttpResponse response = _httpClient.execute(_httpHost, httpRequest);
+        try (final CloseableHttpResponse response = _httpClient.execute(_httpHost, httpRequest)) {
             if (response.getEntity() != null) {
                 return EntityUtils.toString(response.getEntity());
             }

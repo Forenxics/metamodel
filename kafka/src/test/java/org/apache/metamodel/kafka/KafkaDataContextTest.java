@@ -71,7 +71,7 @@ public class KafkaDataContextTest extends EasyMockSupport {
 
         EasyMock.expect(consumer.partitionsFor("myTopic")).andReturn(partitionInfoList);
 
-        final Capture<Collection<TopicPartition>> assignmentCapture = new Capture<>();
+        final Capture<Collection<TopicPartition>> assignmentCapture = Capture.newInstance();
         consumer.assign(EasyMock.capture(assignmentCapture));
         consumer.seekToBeginning(EasyMock.anyObject());
 
@@ -118,7 +118,7 @@ public class KafkaDataContextTest extends EasyMockSupport {
 
         EasyMock.expect(consumerFactory.createConsumer("myTopic", String.class, String.class)).andReturn(consumer);
 
-        final Capture<Collection<TopicPartition>> assignmentCapture = new Capture<>();
+        final Capture<Collection<TopicPartition>> assignmentCapture = Capture.newInstance();
         consumer.assign(EasyMock.capture(assignmentCapture));
         consumer.seekToBeginning(EasyMock.anyObject());
 

@@ -26,13 +26,15 @@ public class WildcardPatternTest extends TestCase {
 		WildcardPattern pattern = new WildcardPattern("foo%bar", '%');
 		assertTrue(pattern.matches("foobar"));
 		assertTrue(pattern.matches("foofoobar"));
-		assertFalse(pattern.matches("foobarbar"));
+		// the wildcard may match any sequence of characters - including
+		// "bar" - just like in a SQL LIKE clause
+		assertTrue(pattern.matches("foobarbar"));
 		assertFalse(pattern.matches("w00p"));
 
 		pattern = new WildcardPattern("*foo*bar", '*');
 		assertTrue(pattern.matches("foobar"));
 		assertTrue(pattern.matches("foofoobar"));
-		assertFalse(pattern.matches("foobarbar"));
+		assertTrue(pattern.matches("foobarbar"));
 		assertFalse(pattern.matches("w00p"));
 
 		pattern = new WildcardPattern("foo%bar%", '%');
@@ -52,5 +54,50 @@ public class WildcardPatternTest extends TestCase {
 		pattern = new WildcardPattern("", '%');
 		assertTrue(pattern.matches(""));
 		assertFalse(pattern.matches("foo"));
+	}
+
+	/**
+	 * The '_' character must be treated as the SQL single character wildcard,
+	 * so that a LIKE filter produces the same result in-memory as it does
+	 * when it is executed as SQL by a datastore.
+	 */
+	public void testSingleCharacterWildcard() throws Exception {
+		WildcardPattern pattern = new WildcardPattern("a_c", '%');
+		assertTrue(pattern.matches("abc"));
+		assertTrue(pattern.matches("a_c"));
+		assertFalse(pattern.matches("ac"));
+		assertFalse(pattern.matches("abbc"));
+
+		pattern = new WildcardPattern("%_", '%');
+		assertTrue(pattern.matches("a"));
+		assertFalse(pattern.matches(""));
+		// '%_' matches any string with at least one character
+		assertTrue(pattern.matches("ab"));
+	}
+
+	public void testWildcardMatchesEmptySequence() throws Exception {
+		WildcardPattern pattern = new WildcardPattern("foo%", '%');
+		assertTrue(pattern.matches("foo"));
+
+		pattern = new WildcardPattern("%foo", '%');
+		assertTrue(pattern.matches("foo"));
+
+		pattern = new WildcardPattern("%", '%');
+		assertTrue(pattern.matches(""));
+		assertTrue(pattern.matches("anything"));
+	}
+
+	public void testNullValueNeverMatches() throws Exception {
+		WildcardPattern pattern = new WildcardPattern("foo%", '%');
+		assertFalse(pattern.matches(null));
+	}
+
+	public void testPatternCannotBeNull() throws Exception {
+		try {
+			new WildcardPattern(null, '%');
+			fail("Exception should have been thrown");
+		} catch (IllegalArgumentException e) {
+			assertEquals("Pattern cannot be null", e.getMessage());
+		}
 	}
 }

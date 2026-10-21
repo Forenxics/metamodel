@@ -134,6 +134,12 @@ public class MutableTable extends AbstractTable implements Serializable {
 
     public MutableTable removeColumn(Column column) {
         _columns.remove(column);
+        if (column != null && column.getTable() == this && column instanceof MutableColumn) {
+            // the column is no longer part of this table, so it must not keep
+            // pointing back at it - otherwise the column still claims to be a
+            // column of this table (e.g. in its qualified label).
+            ((MutableColumn) column).setTable(null);
+        }
         return this;
     }
 

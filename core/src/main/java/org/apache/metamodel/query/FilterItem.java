@@ -325,11 +325,12 @@ public class FilterItem extends BaseObject implements QueryItem, Cloneable, IRow
                     return false;
                 }
             } else if (selectItemValue == null) {
-                if (_operator == OperatorType.DIFFERENT_FROM) {
-                    return true;
-                } else {
-                    return false;
-                }
+                // SQL three-valued logic: comparing a NULL value against a
+                // non-null operand evaluates to UNKNOWN, which means that the
+                // row does not satisfy the filter. Keeping this consistent
+                // with the SQL that is generated for datastores which are
+                // able to execute the filter themselves.
+                return false;
             } else {
                 return compare(selectItemValue, operandValue);
             }

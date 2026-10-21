@@ -82,7 +82,7 @@ final class ExcelUtils {
 
     public static XMLReader createXmlReader() {
         try {
-            SAXParserFactory saxFactory = SAXParserFactory.newInstance();
+            SAXParserFactory saxFactory = ExcelXmlSecurity.createSafeSaxParserFactory();
             SAXParser saxParser = saxFactory.newSAXParser();
             XMLReader sheetParser = saxParser.getXMLReader();
             return sheetParser;

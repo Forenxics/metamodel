@@ -81,7 +81,7 @@ final class JdbcCreateTableBuilder extends AbstractTableCreationBuilder<JdbcUpda
         sb.append("CREATE TABLE ");
         final Schema schema = getSchema();
         if (schema != null && schema.getName() != null) {
-            sb.append(schema.getQualifiedLabel());
+            sb.append(getUpdateCallback().quoteIfNescesary(schema.getQualifiedLabel()));
             sb.append(".");
         }
         sb.append(getUpdateCallback().quoteIfNescesary(table.getName()));
@@ -121,11 +121,11 @@ final class JdbcCreateTableBuilder extends AbstractTableCreationBuilder<JdbcUpda
                 if (columns.get(i).isPrimaryKey()) {
                     if (!primaryKeyExists) {
                         sb.append(", PRIMARY KEY(");
-                        sb.append(columns.get(i).getName());
+                        sb.append(getUpdateCallback().quoteIfNescesary(columns.get(i).getName()));
                         primaryKeyExists = true;
                     } else {
                         sb.append(",");
-                        sb.append(columns.get(i).getName());
+                        sb.append(getUpdateCallback().quoteIfNescesary(columns.get(i).getName()));
                     }
                 }
             }

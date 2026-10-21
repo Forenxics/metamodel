@@ -189,7 +189,7 @@ public class XmlSaxDataContext extends QueryPostprocessDataContext {
             // when querying the schema name for the first time, pick the first
             // element of the document.
             try {
-                SAXParserFactory saxFactory = SAXParserFactory.newInstance();
+                SAXParserFactory saxFactory = XmlSecurityUtils.createSafeSaxParserFactory();
                 SAXParser saxParser = saxFactory.newSAXParser();
                 XMLReader xmlReader = saxParser.getXMLReader();
                 xmlReader.setContentHandler(new DefaultHandler() {
@@ -231,7 +231,7 @@ public class XmlSaxDataContext extends QueryPostprocessDataContext {
         final Action<RowPublisher> rowPublisherAction = new Action<RowPublisher>() {
             @Override
             public void run(RowPublisher rowPublisher) throws Exception {
-                SAXParserFactory saxFactory = SAXParserFactory.newInstance();
+                SAXParserFactory saxFactory = XmlSecurityUtils.createSafeSaxParserFactory();
                 SAXParser saxParser = saxFactory.newSAXParser();
                 XMLReader xmlReader = saxParser.getXMLReader();
                 xmlReader.setContentHandler(new XmlSaxContentHandler(tableDef.getRowXpath(), rowPublisher,

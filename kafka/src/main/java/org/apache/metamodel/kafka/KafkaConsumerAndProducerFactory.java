@@ -67,19 +67,49 @@ public class KafkaConsumerAndProducerFactory implements ConsumerAndProducerFacto
 
     @Override
     public <K, V> Producer<K, V> createProducer(Class<K> keyClass, Class<V> valueClass) {
+        return new KafkaProducer<>(getProducerProperties(keyClass, valueClass));
+    }
+
+    /**
+     * Assembles the configuration of a producer, including a serializer that matches
+     * the type of the key and a serializer that matches the type of the value.
+     *
+     * @param keyClass
+     *            the type of the key
+     * @param valueClass
+     *            the type of the value
+     * @return the properties to configure a producer with
+     */
+    Properties getProducerProperties(final Class<?> keyClass, final Class<?> valueClass) {
         final Properties properties = new Properties();
         baseProperties.stringPropertyNames().forEach(k -> {
             properties.setProperty(k, baseProperties.getProperty(k));
         });
 
         properties.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, serializerForClass(keyClass).getName());
-        properties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, serializerForClass(keyClass).getName());
+        properties.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, serializerForClass(valueClass).getName());
 
-        return new KafkaProducer<>(baseProperties);
+        return properties;
     }
 
     @Override
     public <K, V> Consumer<K, V> createConsumer(String topic, Class<K> keyClass, Class<V> valueClass) {
+        return new KafkaConsumer<>(getConsumerProperties(topic, keyClass, valueClass));
+    }
+
+    /**
+     * Assembles the configuration of a consumer, including a deserializer that matches
+     * the type of the key and a deserializer that matches the type of the value.
+     *
+     * @param topic
+     *            the topic to consume
+     * @param keyClass
+     *            the type of the key
+     * @param valueClass
+     *            the type of the value
+     * @return the properties to configure a consumer with
+     */
+    Properties getConsumerProperties(final String topic, final Class<?> keyClass, final Class<?> valueClass) {
         final String groupId = "apache_metamodel_" + topic + "_" + System.currentTimeMillis();
 
         final Properties properties = new Properties();
@@ -90,9 +120,9 @@ public class KafkaConsumerAndProducerFactory implements ConsumerAndProducerFacto
         properties.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         properties.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, deserializerForClass(keyClass).getName());
-        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, deserializerForClass(keyClass)
+        properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, deserializerForClass(valueClass)
                 .getName());
-        return new KafkaConsumer<>(properties);
+        return properties;
     }
 
     private static Class<? extends Serializer<?>> serializerForClass(Class<?> cls) {

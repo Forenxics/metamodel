@@ -34,7 +34,10 @@ public class ToStringComparatorTest extends TestCase {
 
 	public void testNull() throws Exception {
 		int result = comparator.compare(null, null);
-		assertEquals(-1, result);
+		// Comparator.compare(x, x) must return 0. Returning a non-zero value
+		// here breaks sorted collections that use this comparator, because the
+		// same key is then not recognized as being equal to itself.
+		assertEquals(0, result);
 
 		result = comparator.compare(1, null);
 		assertEquals(1, result);

@@ -62,10 +62,15 @@ public final class DateUtils {
 	}
 
 	public static Date get(Date originalDate, int daysDiff) {
-		long millis = originalDate.getTime();
-		long diff = daysDiff * MILLISECONDS_PER_DAY;
-		millis = millis + diff;
-		return new Date(millis);
+		// Calendar.add() is used instead of adding milliseconds, because a day
+		// is not always 24 hours long. Across a daylight saving time
+		// transition the millisecond arithmetic shifts the time of day, so
+		// that e.g. adding a single day to the day of the transition yields
+		// 23:00 or 01:00 instead of midnight.
+		final Calendar c = createCalendar();
+		c.setTime(originalDate);
+		c.add(Calendar.DAY_OF_MONTH, daysDiff);
+		return c.getTime();
 	}
 
 	public static int getYear(Date date) {

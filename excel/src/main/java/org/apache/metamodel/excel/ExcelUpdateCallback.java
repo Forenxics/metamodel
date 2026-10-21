@@ -129,9 +129,11 @@ final class ExcelUpdateCallback extends AbstractUpdateCallback implements Update
 
     private int getLastRowNum(Sheet sheet) {
         final int lastRowNum = sheet.getLastRowNum();
-        if (lastRowNum == 0 && sheet instanceof SXSSFSheet) {
+        if (lastRowNum <= 0 && sheet instanceof SXSSFSheet) {
             // streaming sheets have bad behaviour in this scenario - since no
-            // rows are in cache, it will return 0!
+            // rows are in cache, getLastRowNum() cannot be trusted: Apache POI 4
+            // returned 0 for an empty sheet, POI 5 returns -1. Count the rows in
+            // the datastore instead.
             DataSet ds = _dataContext.query().from(sheet.getSheetName()).selectCount().execute();
             ds.next();
             final Number count = (Number) ds.getRow().getValue(0);

@@ -64,6 +64,18 @@ public class OperatorTypeImpl implements OperatorType {
         return false;
     }
 
+    /**
+     * Consistent with {@link #equals(Object)}: operator types that are equal
+     * must produce the same hash code. Without this, equal operators end up in
+     * different buckets of a {@link java.util.HashMap} or
+     * {@link java.util.HashSet}, and {@link BaseObject}'s identity-based
+     * equality silently fails for queries and filter items that contain them.
+     */
+    @Override
+    public int hashCode() {
+        return 31 * Objects.hashCode(toSql()) + (isSpaceDelimited() ? 1 : 0);
+    }
+
 /**
      * Converts from SQL string literals to an OperatorType. Valid SQL values are "=", "&lt;&gt;", "LIKE", "&gt;", "&gt;=", "&lt;" and
      * "&lt;=".

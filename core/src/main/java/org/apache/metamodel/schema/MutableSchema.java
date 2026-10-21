@@ -86,6 +86,9 @@ public class MutableSchema extends AbstractSchema implements Serializable,
 	}
 	
 	public MutableSchema clearTables() {
+		for (Table table : _tables) {
+			detach(table);
+		}
 	    _tables.clear();
 	    return this;
 	}
@@ -97,7 +100,21 @@ public class MutableSchema extends AbstractSchema implements Serializable,
 
 	public MutableSchema removeTable(Table table) {
 		_tables.remove(table);
+		detach(table);
 		return this;
+	}
+
+	/**
+	 * Removes the back-reference from a table that is no longer part of this
+	 * schema, so that the table does not keep claiming to reside in a schema
+	 * that it has been removed from.
+	 *
+	 * @param table
+	 */
+	private void detach(Table table) {
+		if (table != null && table.getSchema() == this && table instanceof MutableTable) {
+			((MutableTable) table).setSchema(null);
+		}
 	}
 
 	@Override

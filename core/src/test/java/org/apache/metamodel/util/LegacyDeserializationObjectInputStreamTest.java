@@ -18,14 +18,36 @@
  */
 package org.apache.metamodel.util;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InvalidClassException;
+import java.io.ObjectOutputStream;
 
+import org.apache.metamodel.query.OperatorType;
 import org.apache.metamodel.query.Query;
 import org.apache.metamodel.schema.Table;
 
 import junit.framework.TestCase;
 
 public class LegacyDeserializationObjectInputStreamTest extends TestCase {
+
+    private static final String LEGACY_QUERY_RESOURCE = "src/test/resources/metamodel-3.4-query-and-schema.ser";
+
+    private Object readLegacyQuery() throws Exception {
+        final FileInputStream in = new FileInputStream(LEGACY_QUERY_RESOURCE);
+        try {
+            final LegacyDeserializationObjectInputStream ois = new LegacyDeserializationObjectInputStream(in);
+            try {
+                return ois.readObject();
+            } finally {
+                ois.close();
+            }
+        } finally {
+            in.close();
+        }
+    }
 
     /**
      * Method used to generate the input file (requires org.eobjects.metamodel
@@ -56,19 +78,7 @@ public class LegacyDeserializationObjectInputStreamTest extends TestCase {
      * </pre>
      */
     public void testCreateSerializeAndDeserializeOldSchemaAndQuery() throws Exception {
-        final String filename = "src/test/resources/metamodel-3.4-query-and-schema.ser";
-
-        final Object obj;
-        {
-            final FileInputStream in = new FileInputStream(filename);
-            try {
-                final LegacyDeserializationObjectInputStream ois = new LegacyDeserializationObjectInputStream(in);
-                obj = ois.readObject();
-                ois.close();
-            } finally {
-                in.close();
-            }
-        }
+        final Object obj = readLegacyQuery();
 
         assertTrue(obj instanceof Query);
 
@@ -82,5 +92,100 @@ public class LegacyDeserializationObjectInputStreamTest extends TestCase {
                 table.getColumn(1).toString());
 
         assertEquals("SELECT mytable.\"mycol1\" FROM myschema.mytable WHERE mytable.mycol1 = 'foo'", q.toSql());
+    }
+
+    /**
+     * The legacy stream describes {@link OperatorType} as an enum, while
+     * {@link OperatorType} is an interface nowadays. Binding the enum
+     * descriptor to the interface makes the JDK fail with "cannot bind enum
+     * descriptor to a non-enum class", so the operator has to be bound to the
+     * legacy enum implementation - which still has to satisfy the modern
+     * {@link OperatorType} contract.
+     */
+    public void testLegacyEnumOperatorIsBoundToTheModernInterface() throws Exception {
+        final Object obj = readLegacyQuery();
+        assertTrue(obj instanceof Query);
+
+        final Query q = (Query) obj;
+        final OperatorType operator = q.getWhereClause().getItem(0).getOperator();
+
+        assertNotNull("operator of the legacy filter", operator);
+        assertTrue("operator must implement the modern OperatorType interface",
+                operator instanceof OperatorType);
+        assertEquals(OperatorType.EQUALS_TO, operator);
+        assertEquals("=", operator.toSql());
+    }
+
+    /**
+     * A stream that was written by a current MetaModel release must still be
+     * readable through this stream - the legacy handling must not interfere
+     * with descriptors that are not legacy enums.
+     */
+    public void testCurrentStreamIsStillReadable() throws Exception {
+        final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        final ObjectOutputStream oos = new ObjectOutputStream(bos);
+        try {
+            oos.writeObject("a plain value");
+        } finally {
+            oos.close();
+        }
+
+        final LegacyDeserializationObjectInputStream ois = new LegacyDeserializationObjectInputStream(
+                new ByteArrayInputStream(bos.toByteArray()));
+        try {
+            assertEquals("a plain value", ois.readObject());
+        } finally {
+            ois.close();
+        }
+    }
+
+    /**
+     * The default policy only lets MetaModel and JDK classes through, so a
+     * hostile stream cannot make this class instantiate arbitrary types.
+     */
+    public void testDefaultAllowList() throws Exception {
+        final LegacyDeserializationObjectInputStream ois = new LegacyDeserializationObjectInputStream(
+                new ByteArrayInputStream(new byte[] { (byte) 0xAC, (byte) 0xED, 0x00, 0x05 }));
+        try {
+            assertTrue(ois.isAllowedClass("org.apache.metamodel.query.Query"));
+            assertTrue(ois.isAllowedClass("org.eobjects.metamodel.query.Query"));
+            assertTrue(ois.isAllowedClass("java.util.ArrayList"));
+            assertTrue(ois.isAllowedClass("javax.sql.rowset.CachedRowSet"));
+            assertTrue(ois.isAllowedClass("[Ljava.lang.String;"));
+            assertFalse(ois.isAllowedClass("com.example.gadget.Exploit"));
+            assertFalse(ois.isAllowedClass("[Lcom.example.gadget.Exploit;"));
+        } finally {
+            ois.close();
+        }
+    }
+
+    /**
+     * A class outside the allowed namespaces must be rejected instead of being
+     * instantiated.
+     */
+    public void testDisallowedClassIsRejected() throws Exception {
+        final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        final ObjectOutputStream oos = new ObjectOutputStream(bos);
+        try {
+            oos.writeObject(new java.util.Date(0));
+        } finally {
+            oos.close();
+        }
+
+        final LegacyDeserializationObjectInputStream ois = new LegacyDeserializationObjectInputStream(
+                new ByteArrayInputStream(bos.toByteArray())) {
+            @Override
+            protected boolean isAllowedClass(String className) {
+                return false;
+            }
+        };
+        try {
+            ois.readObject();
+            fail("Expected the disallowed class to be rejected");
+        } catch (InvalidClassException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("not allowed"));
+        } finally {
+            ois.close();
+        }
     }
 }

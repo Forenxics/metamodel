@@ -196,10 +196,15 @@ public abstract class AbstractTable implements Table {
     @Override
     public final String getQuotedName() {
         String quote = getQuote();
-        if (quote == null) {
-            return getName();
+        final String name = getName();
+        if (quote == null || name == null) {
+            return name;
         }
-        return quote + getName() + quote;
+        // Escape any occurrence of the quote character inside the name by
+        // doubling it. Without this, a name containing the quote character can
+        // terminate the identifier early and inject arbitrary SQL into the
+        // statement that the quoted name is embedded in (CWE-89).
+        return quote + name.replace(quote, quote + quote) + quote;
     }
 
     @Override
@@ -221,7 +226,8 @@ public abstract class AbstractTable implements Table {
 
     @Override
     public int hashCode() {
-        return getName().hashCode();
+        final String name = getName();
+        return name == null ? 0 : name.hashCode();
     }
 
     @Override

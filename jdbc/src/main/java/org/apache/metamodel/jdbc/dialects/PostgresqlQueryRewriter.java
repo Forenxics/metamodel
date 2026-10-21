@@ -28,8 +28,6 @@ import org.apache.metamodel.query.FromItem;
 import org.apache.metamodel.query.Query;
 import org.apache.metamodel.schema.Column;
 import org.apache.metamodel.schema.ColumnType;
-import org.apache.metamodel.schema.Schema;
-import org.apache.metamodel.schema.Table;
 import org.postgresql.util.PGobject;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -129,17 +127,9 @@ public class PostgresqlQueryRewriter extends LimitOffsetQueryRewriter {
 
     @Override
     protected String rewriteFromItem(Query query, FromItem item) {
-        String result = super.rewriteFromItem(query, item);
-        Table table = item.getTable();
-        if (table != null) {
-            Schema schema = table.getSchema();
-            if (schema != null) {
-                String schemaName = schema.getName();
-                if (schemaName != null && !schemaName.isEmpty()) {
-                    result = result.replaceFirst(schemaName, '\"' + schema.getName() + '\"');
-                }
-            }
-        }
-        return result;
+        final String result = super.rewriteFromItem(query, item);
+        // PostgreSQL always quotes the schema name of a table reference. The
+        // identifier quote character of PostgreSQL is the double quote.
+        return rewriteSchemaNames(item, result, true, "\"");
     }
 }

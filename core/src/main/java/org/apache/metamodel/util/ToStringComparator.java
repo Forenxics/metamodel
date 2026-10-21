@@ -56,7 +56,7 @@ public final class ToStringComparator implements Comparator<Object> {
 
 	public int compare(Object o1, Object o2) {
 		if (o1 == null && o2 == null) {
-			return -1;
+			return 0;
 		}
 		if (o1 == null) {
 			return -1;

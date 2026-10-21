@@ -87,10 +87,12 @@ public class HsqldbQueryRewriter extends DefaultQueryRewriter {
                     // HSQLDB does not treat (TIMESTAMP 'yyyy-MM-dd hh:mm:ss')
                     // tokens correctly
                     String result = super.rewriteFilterItem(item);
-                    int indexOfTimestamp = result.lastIndexOf("TIMESTAMP");
+                    // only the type token of the literal may be removed - never a
+                    // part of the column name (e.g. "UPDATED_TIMESTAMP").
+                    int indexOfTimestamp = result.lastIndexOf("TIMESTAMP ");
                     if (indexOfTimestamp != -1) {
                         result = result.substring(0, indexOfTimestamp)
-                                + result.substring(indexOfTimestamp + "TIMESTAMP".length());
+                                + result.substring(indexOfTimestamp + "TIMESTAMP ".length());
                     }
                     return result;
                 }
@@ -104,6 +106,19 @@ public class HsqldbQueryRewriter extends DefaultQueryRewriter {
      */
     @Override
     public boolean needsQuoting(String alias, String identifierQuoteString) {
+        // NOTE: this check is performed against the identifierQuoteString and not
+        // against the alias, which means that the "always escape" behaviour that
+        // the javadoc describes is never actually applied.
+        //
+        // It is deliberately NOT changed here: escaping the alias makes the
+        // generated statements invalid, because the column qualifiers that refer
+        // to a FROM item alias are rendered without quoting by the core module
+        // (SelectItem#getSameQueryAlias() and FilterItem#toSql()). A quoted
+        // alias ("c") does not match an unquoted qualifier (c."COLUMN") in
+        // HSQLDB - the statement fails with "Column not found: C.COLUMN".
+        //
+        // Fixing this properly requires the core module to render the
+        // qualifiers with the same quoting rules as the alias.
         final boolean containsLowerCase = identifierQuoteString.chars().anyMatch(Character::isLowerCase);
 
         return containsLowerCase || super.needsQuoting(alias, identifierQuoteString);

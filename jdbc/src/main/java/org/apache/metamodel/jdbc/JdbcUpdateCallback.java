@@ -112,12 +112,25 @@ abstract class JdbcUpdateCallback extends AbstractUpdateCallback implements Upda
 
     public final void close(boolean success) {
         if (_connection != null) {
-            if (success && _preparedStatement != null) {
-                closePreparedStatement(_preparedStatement);
-            }
+            try {
+                if (_preparedStatement != null) {
+                    final PreparedStatement preparedStatement = _preparedStatement;
+                    _preparedStatement = null;
+                    _preparedStatementSql = null;
+                    if (success) {
+                        closePreparedStatement(preparedStatement);
+                    } else {
+                        // the transaction is rolled back, so any batched
+                        // statements must be discarded instead of executed.
+                        try {
+                            preparedStatement.close();
+                        } catch (SQLException e) {
+                            logger.warn("Exception occurred while closing prepared statement: {}", e.getMessage());
+                        }
+                    }
+                }
 
-            if (getJdbcDataContext().getQueryRewriter().isTransactional()) {
-                try {
+                if (getJdbcDataContext().getQueryRewriter().isTransactional()) {
                     commitOrRollback(success);
 
                     if (getJdbcDataContext().isDefaultAutoCommit()) {
@@ -127,9 +140,12 @@ abstract class JdbcUpdateCallback extends AbstractUpdateCallback implements Upda
                             throw JdbcUtils.wrapException(e, "enable auto-commit", JdbcActionType.OTHER);
                         }
                     }
-                } finally {
-                    getJdbcDataContext().close(_connection);
                 }
+            } finally {
+                // the connection must always be released - also when the query
+                // rewriter is non-transactional and there is no commit or
+                // rollback to be performed.
+                getJdbcDataContext().close(_connection);
             }
         }
     }
@@ -180,19 +196,47 @@ abstract class JdbcUpdateCallback extends AbstractUpdateCallback implements Upda
         if (quote == null) {
             return identifier;
         }
-        boolean quotes = false;
-        if (identifier.indexOf(' ') != -1 || identifier.indexOf('-') != -1) {
-            quotes = true;
-        } else {
-            if (SqlKeywords.isKeyword(identifier)) {
-                quotes = true;
-            }
-        }
-
-        if (quotes) {
-            identifier = quote + identifier + quote;
+        if (needsQuoting(identifier)) {
+            identifier = quote + escapeIdentifier(identifier, quote) + quote;
         }
         return identifier;
+    }
+
+    /**
+     * Determines whether an identifier has to be quoted in order for it to be
+     * rendered as a single, valid SQL identifier.
+     *
+     * @param identifier the identifier to inspect
+     * @return true if the identifier must be quoted
+     */
+    private static boolean needsQuoting(String identifier) {
+        if (SqlKeywords.isKeyword(identifier)) {
+            return true;
+        }
+        for (int i = 0; i < identifier.length(); i++) {
+            final char c = identifier.charAt(i);
+            if (Character.isLetterOrDigit(c) || c == '_' || c == '$') {
+                continue;
+            }
+            // anything that is not a "plain" identifier character (a space, a
+            // dash, a dot, a semicolon, a quote character etc.) would either
+            // change the meaning of the statement or break it apart into
+            // multiple statements - so it must be quoted.
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Escapes an identifier by doubling any occurrence of the identifier quote
+     * character, so that it cannot terminate the quoted identifier.
+     *
+     * @param identifier the identifier to escape
+     * @param quote the identifier quote character of the database
+     * @return the escaped identifier
+     */
+    private static String escapeIdentifier(String identifier, String quote) {
+        return identifier.replace(quote, quote + quote);
     }
 
     public final PreparedStatement getPreparedStatement(String sql, boolean reuseStatement,

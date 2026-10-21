@@ -245,7 +245,7 @@ public class XmlDomDataContext extends QueryPostprocessDataContext {
             _schema = new MutableSchema(_schemaName);
             InputSource inputSource = _inputSourceRef.get();
             try {
-                DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+                DocumentBuilderFactory dbf = XmlSecurityUtils.createSafeDocumentBuilderFactory();
                 dbf.setIgnoringComments(true);
                 DocumentBuilder db = dbf.newDocumentBuilder();
                 Document document = db.parse(inputSource);

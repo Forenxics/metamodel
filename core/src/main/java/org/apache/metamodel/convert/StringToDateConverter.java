@@ -22,6 +22,7 @@ import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Locale;
 import java.util.function.Function;
 
 import org.apache.metamodel.util.TimeComparator;
@@ -39,10 +40,18 @@ public class StringToDateConverter implements TypeConverter<String, Date> {
      * Constructs a new {@link StringToDateConverter} which will use the
      * {@link TimeComparator#toDate(Object)} method for parsing dates and the
      * {@link DateFormat#MEDIUM} date time format for physical representation.
+     * <p>
+     * The physical representation is parsed back using the very same
+     * {@link DateFormat#MEDIUM} format that produced it, so that a value can
+     * always be converted back into the {@link Date} it was created from.
      */
     public StringToDateConverter() {
-        _deserializeFunc = stringValue -> {
-            return TimeComparator.toDate(stringValue);
+        _deserializeFunc = string -> {
+            Date date = parseWithMediumDateFormat(string);
+            if (date == null) {
+                date = TimeComparator.toDate(string);
+            }
+            return date;
         };
         _serializeFunc = date -> {
             return DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM).format(date);
@@ -52,19 +61,58 @@ public class StringToDateConverter implements TypeConverter<String, Date> {
     /**
      * Constructs a new {@link StringToDateConverter} using a given date
      * pattern.
-     * 
+     * <p>
+     * The pattern is interpreted using the JVM's default {@link Locale}. Use
+     * {@link #StringToDateConverter(String, Locale)} in order to specify the
+     * locale explicitly.
+     *
      * @param datePattern
      *            a String date pattern, corresponding to the syntax of a
      *            {@link SimpleDateFormat}.
      */
     public StringToDateConverter(String datePattern) {
-        this(new SimpleDateFormat(datePattern));
+        this(datePattern, null);
+    }
+
+    /**
+     * Constructs a new {@link StringToDateConverter} using a given date
+     * pattern and {@link Locale}.
+     *
+     * @param datePattern
+     *            a String date pattern, corresponding to the syntax of a
+     *            {@link SimpleDateFormat}.
+     * @param locale
+     *            the {@link Locale} to use for interpreting the pattern, or
+     *            null in order to use the JVM's default {@link Locale}.
+     */
+    public StringToDateConverter(String datePattern, Locale locale) {
+        // create a format eagerly, in order to fail fast on an invalid
+        // pattern (and to preserve the behaviour of previous versions of this
+        // class, which validated the pattern up front)
+        createDateFormat(datePattern, locale);
+
+        _deserializeFunc = string -> {
+            DateFormat dateFormat = createDateFormat(datePattern, locale);
+            try {
+                return dateFormat.parse(string);
+            } catch (ParseException e) {
+                throw new IllegalArgumentException("Could not parse date string: " + string);
+            }
+        };
+        _serializeFunc = date -> {
+            return createDateFormat(datePattern, locale).format(date);
+        };
     }
 
     /**
      * Constructs a new {@link StringToDateConverter} using a given
      * {@link DateFormat}.
-     * 
+     * <p>
+     * Note that {@link DateFormat} implementations - notably
+     * {@link SimpleDateFormat} - are not thread safe. The supplied instance is
+     * therefore guarded by its own monitor, so that the converter can safely
+     * be used by multiple threads.
+     *
      * @param dateFormat
      *            the {@link DateFormat} to use for parsing and formatting
      *            dates.
@@ -74,14 +122,18 @@ public class StringToDateConverter implements TypeConverter<String, Date> {
             throw new IllegalArgumentException("DateFormat cannot be null");
         }
         _deserializeFunc = string -> {
-            try {
-                return dateFormat.parse(string);
-            } catch (ParseException e) {
-                throw new IllegalArgumentException("Could not parse date string: " + string);
+            synchronized (dateFormat) {
+                try {
+                    return dateFormat.parse(string);
+                } catch (ParseException e) {
+                    throw new IllegalArgumentException("Could not parse date string: " + string);
+                }
             }
         };
         _serializeFunc = date -> {
-            return dateFormat.format(date);
+            synchronized (dateFormat) {
+                return dateFormat.format(date);
+            }
         };
     }
 
@@ -107,4 +159,26 @@ public class StringToDateConverter implements TypeConverter<String, Date> {
         return _deserializeFunc.apply(physicalValue);
     }
 
+    private static DateFormat createDateFormat(String datePattern, Locale locale) {
+        if (locale == null) {
+            return new SimpleDateFormat(datePattern);
+        }
+        return new SimpleDateFormat(datePattern, locale);
+    }
+
+    /**
+     * Parses a string using the same {@link DateFormat#MEDIUM} format that is
+     * used for the physical representation of a date.
+     *
+     * @param string
+     * @return the parsed date, or null if the string could not be parsed.
+     */
+    private static Date parseWithMediumDateFormat(String string) {
+        DateFormat dateFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.MEDIUM);
+        try {
+            return dateFormat.parse(string);
+        } catch (ParseException e) {
+            return null;
+        }
+    }
 }

@@ -73,20 +73,24 @@ public class ElasticSearchRestDataContextFactory implements DataContextFactory {
         return true;
     }
 
-    private RestHighLevelClient createClient(final DataContextProperties properties) throws MalformedURLException {
+    RestHighLevelClient createClient(final DataContextProperties properties) throws MalformedURLException {
         final URL url = new URL(properties.getUrl());
-        
+
+        // The scheme of the configured URL must be preserved. HttpHost(host, port)
+        // defaults to "http", which would silently downgrade an https:// connection
+        // to plain text and expose the Basic Authentication credentials.
         return ElasticSearchRestUtil
-                .createClient(new HttpHost(url.getHost(), url.getPort()), properties.getUsername(), properties
-                        .getPassword());
+                .createClient(new HttpHost(url.getHost(), url.getPort(), url.getProtocol()), properties.getUsername(),
+                        properties.getPassword());
     }
 
-    private String getIndex(DataContextProperties properties) {
+    String getIndex(DataContextProperties properties) {
         final String databaseName = properties.getDatabaseName();
-        if (databaseName == null) {
-            properties.toMap().get("index");
+        if (databaseName != null) {
+            return databaseName;
         }
-        return databaseName;
+        final Object index = properties.toMap().get("index");
+        return index == null ? null : index.toString();
     }
 
     @Override

@@ -19,58 +19,105 @@
 package org.apache.metamodel.util;
 
 import java.io.Serializable;
-import java.util.StringTokenizer;
 
 import org.apache.metamodel.query.FilterItem;
 
 /**
  * Represents a pattern with a wildcard character. These are typically used in
  * FilterItems with the LIKE operator.
- * 
+ * <p>
+ * The matching semantics are those of the SQL <code>LIKE</code> operator:
+ * <ul>
+ * <li>the wildcard character (typically '%') matches any sequence of
+ * characters, including the empty sequence</li>
+ * <li>the single character wildcard '_' matches exactly one character</li>
+ * </ul>
+ * This makes the in-memory evaluation of a LIKE filter produce the same
+ * result as the SQL that is generated for datastores which are able to
+ * execute the filter themselves.
+ *
  * @see FilterItem
  */
 public final class WildcardPattern implements Serializable {
 
 	private static final long serialVersionUID = 857462137797209624L;
-	private final boolean _startsWithDelim;
-	private final boolean _endsWithDelim;
-	private String _pattern;
-	private char _wildcard;
+
+	/**
+	 * The character that matches any sequence of characters.
+	 */
+	private final char _wildcard;
+
+	/**
+	 * The character that matches exactly one character.
+	 */
+	private final char _singleCharWildcard;
+
+	private final String _pattern;
 
 	public WildcardPattern(String pattern, char wildcard) {
+		if (pattern == null) {
+			throw new IllegalArgumentException("Pattern cannot be null");
+		}
 		_pattern = pattern;
 		_wildcard = wildcard;
-		if(_pattern.isEmpty()){
-			_startsWithDelim = _endsWithDelim = false;
-		} else {
-			_startsWithDelim = _pattern.charAt(0) == _wildcard;
-			_endsWithDelim = _pattern.charAt(pattern.length() - 1) == _wildcard;
-		}
+		_singleCharWildcard = '_';
 	}
 
 	public boolean matches(String value) {
 		if (value == null) {
 			return false;
 		}
-		StringTokenizer st = new StringTokenizer(_pattern,
-				Character.toString(_wildcard));
-		int charIndex = 0;
-		while (st.hasMoreTokens()) {
-			int oldIndex = charIndex;
-			String token = st.nextToken();
-			charIndex = value.indexOf(token, charIndex);
-			if (charIndex == -1 || !_startsWithDelim && oldIndex == 0 && charIndex != 0) {
+		return matches(_pattern, value);
+	}
+
+	/**
+	 * Matches a value against a pattern using the semantics of the SQL
+	 * <code>LIKE</code> operator. The algorithm keeps track of the last
+	 * position at which the wildcard was encountered, so that it can be
+	 * expanded by one character at a time whenever a subsequent part of the
+	 * pattern does not match. This keeps the matching linear in the size of
+	 * the pattern and the value (as opposed to a naive recursive
+	 * implementation, which can degrade exponentially).
+	 *
+	 * @param pattern
+	 * @param value
+	 * @return true if the value matches the pattern
+	 */
+	private boolean matches(String pattern, String value) {
+		int patternIndex = 0;
+		int valueIndex = 0;
+		int wildcardIndex = -1;
+		int wildcardValueIndex = -1;
+		boolean firstEntry = true;
+
+		while (valueIndex < value.length()) {
+			if (patternIndex < pattern.length() && pattern.charAt(patternIndex) == _wildcard) {
+				// remember where the wildcard was encountered, so that it can
+				// be expanded further if the rest of the pattern does not match
+				wildcardIndex = patternIndex;
+				wildcardValueIndex = valueIndex;
+				patternIndex++;
+			} else if (patternIndex < pattern.length()
+					&& (pattern.charAt(patternIndex) == _singleCharWildcard
+							|| pattern.charAt(patternIndex) == value.charAt(valueIndex))) {
+				patternIndex++;
+				valueIndex++;
+			} else if (wildcardIndex != -1) {
+				// let the wildcard consume one more character and retry
+				wildcardValueIndex++;
+				valueIndex = wildcardValueIndex;
+				patternIndex = wildcardIndex + 1;
+			} else {
 				return false;
 			}
-			charIndex = charIndex + token.length();
+			firstEntry = false;
 		}
-		if (!_endsWithDelim) {
-			// Unless the last char of the pattern is a wildcard, we need to
-			// have reached the end of the string
-			if (charIndex != value.length()) {
-				return false;
-			}
+
+		// the value must be fully consumed, except for trailing wildcards
+		// which are allowed to match the empty sequence
+		while (patternIndex < pattern.length() && pattern.charAt(patternIndex) == _wildcard) {
+			patternIndex++;
 		}
-		return true;
+		return patternIndex == pattern.length();
 	}
 }

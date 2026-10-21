@@ -18,6 +18,7 @@
  */
 package org.apache.metamodel.schema;
 
+import java.io.ObjectStreamException;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -26,8 +27,10 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.Comparator;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -129,6 +132,70 @@ public class ColumnTypeImpl implements ColumnType {
     @Override
     public Class<?> getJavaEquivalentClass() {
         return _javaType;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(_name, _superColumnType, _javaType, _largeObject);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) {
+            return true;
+        }
+        if (!(obj instanceof ColumnType)) {
+            return false;
+        }
+        final ColumnType other = (ColumnType) obj;
+        return _name.equals(other.getName()) && _superColumnType == other.getSuperType()
+                && _javaType == other.getJavaEquivalentClass() && _largeObject == other.isLargeObject();
+    }
+
+    /**
+     * Ensures that a deserialized {@link ColumnType} is resolved back to the canonical constant that it was created
+     * from (e.g. {@link ColumnType#DATE}), rather than to a new, non-identical instance. Without this, code that
+     * compares column types by reference (like {@link ColumnType#DATE}) would no longer recognize the type of a
+     * deserialized column.
+     */
+    private Object readResolve() throws ObjectStreamException {
+        final ColumnType canonical = CanonicalTypes.get(_name);
+        if (canonical != null && canonical.getSuperType() == _superColumnType
+                && canonical.getJavaEquivalentClass() == _javaType && canonical.isLargeObject() == _largeObject) {
+            return canonical;
+        }
+        return this;
+    }
+
+    /**
+     * Lazily initialized holder of the canonical {@link ColumnType} constants. This is a separate class so that the
+     * lookup is not performed while {@link ColumnType}'s own static initializer is still running.
+     */
+    private static final class CanonicalTypes {
+
+        private static final Map<String, ColumnType> TYPES = createTypes();
+
+        private static Map<String, ColumnType> createTypes() {
+            final Map<String, ColumnType> types = new HashMap<>();
+            for (final Field field : ColumnType.class.getFields()) {
+                if (!ColumnType.class.isAssignableFrom(field.getType())) {
+                    continue;
+                }
+                try {
+                    final ColumnType value = (ColumnType) field.get(null);
+                    if (value != null) {
+                        types.put(value.getName(), value);
+                    }
+                } catch (IllegalAccessException e) {
+                    // ignore - not a readable constant
+                }
+            }
+            return types;
+        }
+
+        private static ColumnType get(String name) {
+            return TYPES.get(name);
+        }
     }
 
     @Override
