@@ -128,3 +128,49 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  dependency-check:
+    name: Dependency CVE scan
+    runs-on: ubuntu-latest
+    # Only on the default branch and on the weekly schedule - the NVD feed is
+    # slow to download and rate limited.
+    if: github.event_name == 'schedule' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    # The NVD key is bound at the job level on purpose. The 'secrets' context is
+    # NOT available in a step-level 'if' condition - a workflow that refers to
+    # it there is rejected by GitHub before a single job starts, and the
+    # rejection looks like a workflow file error rather than a mistake in the
+    # expression. The 'env' context IS available in a step-level 'if', so the
+    # job-level env is what the steps test.
+    env:
+      NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: OWASP dependency-check
+        # Without an NVD API key the vulnerability feed download takes hours,
+        # so the scan is skipped rather than run half-way.
+        if: env.NVD_API_KEY != ''
+        run: |
+          mvn -B -ntp org.owasp:dependency-check-maven:check \
+            -DnvdApiKey="${NVD_API_KEY}" \
+            -DfailBuildOnCVSS=7 \
+            -Dformat=HTML,SARIF \
+            -DsuppressionFile=docs/dependency-check-suppressions.xml
+
+      - name: OWASP dependency-check skipped
+        if: env.NVD_API_KEY == ''
+        run: echo "NVD_API_KEY is not configured - the dependency CVE scan was skipped."
+
+      - name: Upload dependency-check report
+        if: always() && env.NVD_API_KEY != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: '**/dependency-check-report.html'
+          if-no-files-found: ignore
+          retention-days: 30
