@@ -105,6 +105,12 @@ public class SugarCrmSoapXxeTest {
     private volatile String _loginResponse;
 
     /**
+     * The content type that the fake server answers with. It is a field so that the
+     * tests can check that the verdict does not depend on it.
+     */
+    private volatile String _contentType = "text/xml; charset=utf-8";
+
+    /**
      * Every request body that the fake server received.
      */
     private final List<String> _requestBodies = Collections.synchronizedList(new ArrayList<String>());
@@ -131,7 +137,7 @@ public class SugarCrmSoapXxeTest {
                         response = _loginResponse.getBytes("UTF-8");
                     }
 
-                    exchange.getResponseHeaders().add("Content-Type", "text/xml; charset=utf-8");
+                    exchange.getResponseHeaders().add("Content-Type", _contentType);
                     exchange.sendResponseHeaders(200, response.length);
                     exchange.getResponseBody().write(response);
                 } finally {
@@ -202,6 +208,82 @@ public class SugarCrmSoapXxeTest {
         driveSoapCallPath();
 
         assertNotLeaked(INTERNAL_MARKER, "an entity declared in the SOAP response was expanded");
+    }
+
+    /**
+     * An <em>external parameter entity</em> in the inbound SOAP response must not be
+     * resolved either. This is the classic bypass shape: a parameter entity is
+     * declared in the internal DTD subset and referenced from the subset itself, so
+     * a parser that only checks for general entity references can still be made to
+     * read a local file.
+     */
+    @Test
+    public void testInboundSoapResponseWithParameterEntityIsNotExpanded() throws Exception {
+        final File secretFile = createSecretFile();
+        final String doctype = "<!DOCTYPE soapenv:Envelope [ <!ENTITY % xxe SYSTEM \"" + secretFile.toURI()
+                + "\"> %xxe; ]>";
+
+        _loginResponse = soapResponse(doctype, "<id>&xxe;</id>");
+
+        driveSoapCallPath();
+
+        assertNotLeaked(SECRET, "the content of a local file was resolved by the SOAP response parser");
+    }
+
+    /**
+     * An <em>external DTD subset</em> must not be fetched. The DTD subset itself is
+     * where an entity would be declared, so fetching it is the first step of the
+     * attack even when the response body itself contains no entity reference.
+     */
+    @Test
+    public void testInboundSoapResponseWithExternalDtdSubsetIsNotResolved() throws Exception {
+        final File secretFile = createSecretFile();
+        final String doctype = "<!DOCTYPE soapenv:Envelope SYSTEM \"" + secretFile.toURI() + "\">";
+
+        _loginResponse = soapResponse(doctype, "<id>x</id>");
+
+        driveSoapCallPath();
+
+        assertNotLeaked(SECRET, "an external DTD subset was resolved by the SOAP response parser");
+    }
+
+    /**
+     * A "billion laughs" payload must not be expanded either: the parser has to skip
+     * the DTD declaration, not read it and expand the entities it declares.
+     */
+    @Test
+    public void testInboundSoapResponseWithNestedEntitiesIsNotExpanded() throws Exception {
+        final String doctype = "<!DOCTYPE soapenv:Envelope [ <!ENTITY a \"" + INTERNAL_MARKER
+                + "\"> <!ENTITY b \"&a;&a;&a;&a;\"> <!ENTITY c \"&b;&b;&b;&b;\"> ]>";
+
+        _loginResponse = soapResponse(doctype, "<id>&c;</id>");
+
+        driveSoapCallPath();
+
+        assertNotLeaked(INTERNAL_MARKER, "an entity declared in the SOAP response was expanded");
+    }
+
+    /**
+     * The verdict must not depend on the content type the server answers with. The
+     * JAX-WS runtime only accepts a SOAP content type; the two it accepts are
+     * checked here, and for each of them the XXE payload must not be expanded.
+     */
+    @Test
+    public void testVerdictDoesNotDependOnTheContentType() throws Exception {
+        final File secretFile = createSecretFile();
+        final String doctype = "<!DOCTYPE soapenv:Envelope [ <!ENTITY xxe SYSTEM \"" + secretFile.toURI() + "\"> ]>";
+
+        for (String contentType : new String[] { "text/xml; charset=utf-8", "text/xml", "application/soap+xml",
+                "application/xml" }) {
+            _contentType = contentType;
+            _loginResponse = soapResponse(doctype, "<id>&xxe;</id>");
+            _requestBodies.clear();
+
+            driveSoapCallPath();
+
+            assertNotLeaked(SECRET, "the content of a local file was resolved by the SOAP response parser (content type: "
+                    + contentType + ")");
+        }
     }
 
     /**
