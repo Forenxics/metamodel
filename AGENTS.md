@@ -133,6 +133,16 @@ changes ripple into every adapter, so treat them as public API.
   ever existed on now-dead plain-HTTP repositories; they are pinned in the POMs.
 - **`sugarcrm`, `neo4j`, `full` and `spring`** are at the end of the reactor and depend on the
   JAX-WS code generation plugin; a failure there blocks the tail of the build.
+- **`secrets` is not available in a step-level `if:` condition.** GitHub rejects the whole
+  workflow before a job starts, and reports it as a *workflow file error* rather than as a
+  mistake in the expression — so the symptom is a run that fails in 0 s with no jobs, and no
+  log to read. Bind the secret at the **job** level (`env:`) and test the `env` context in the
+  step (`if: env.SOME_KEY != ''`); `env` *is* available in a step-level `if:`.
+- **A file that upstream tracks can still be dropped by `git add`.** `jdbc/src/test/resources/.gitignore`
+  ignores `/trac.db`, but upstream committed it *before* that rule existed, so it is tracked
+  there. Rebuilding a baseline with `git add -A` from a working tree silently drops it, and a
+  fresh clone then fails `SqliteTest`. Compare the tree of a rebuilt baseline against upstream's
+  with `git diff --stat <upstream> <baseline>` — comparing the *working tree* is not enough.
 - **The `full` package duplicates some classes on purpose.**
   `full/tattletale-filters.properties` lists them — multi-release `module-info.class`,
   empty `package-info` markers, and the `javax.*` classes that the `jakarta.*`-named
