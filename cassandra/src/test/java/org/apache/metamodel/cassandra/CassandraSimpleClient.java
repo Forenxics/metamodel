@@ -18,36 +18,57 @@
  */
 package org.apache.metamodel.cassandra;
 
-import com.datastax.driver.core.Cluster;
+import java.time.Duration;
+
+import com.datastax.oss.driver.api.core.CqlSession;
+import com.datastax.oss.driver.api.core.CqlSessionBuilder;
+import com.datastax.oss.driver.api.core.config.DefaultDriverOption;
+import com.datastax.oss.driver.api.core.config.DriverConfigLoader;
 
 /**
  * Utility test class that provides a handy way to
  * connect to a Cassandra cluster through the
- * {@link Cluster} class.
+ * {@link CqlSession} class.
  *
- * To get a connected instance of the cluster you
- * should call {@link #connect(String, int)}
- * providing the node and port of your Cassandra cluster
- * then you can get the connected instance by calling
- * {@link #getCluster()}.
+ * To get a connected instance of the session you
+ * should call {@link #connect(String, int, String)}
+ * providing the node, port and local datacenter of your
+ * Cassandra cluster, then you can get the connected instance
+ * by calling {@link #getSession()}.
  *
  */
 public class CassandraSimpleClient {
-    private Cluster cluster;
 
-    public void connect(String node, int port) {
-        cluster = Cluster.builder().withPort(port)
-                .addContactPoint(node)
-                .build();
+    /**
+     * The driver 4.x defaults to a request timeout of 2 seconds, which is too
+     * short for the schema changing statements that the tests use to set up
+     * their fixtures.
+     */
+    public static final Duration DEFAULT_REQUEST_TIMEOUT = Duration.ofSeconds(60);
+
+    private CqlSession session;
+
+    public void connect(String node, int port, String localDatacenter) {
+        connect(node, port, localDatacenter, DEFAULT_REQUEST_TIMEOUT);
     }
 
-    public Cluster getCluster() {
-        return cluster;
+    public void connect(String node, int port, String localDatacenter, Duration requestTimeout) {
+        final CqlSessionBuilder builder = CqlSession.builder()
+                .addContactPoint(new java.net.InetSocketAddress(node, port))
+                .withConfigLoader(DriverConfigLoader.programmaticBuilder()
+                        .withDuration(DefaultDriverOption.REQUEST_TIMEOUT, requestTimeout).build())
+                .withLocalDatacenter(localDatacenter);
+        session = builder.build();
+    }
+
+    public CqlSession getSession() {
+        return session;
     }
 
     public void close() {
-        if (cluster != null) {            
-            cluster.close();
+        if (session != null) {
+            session.close();
+            session = null;
         }
     }
 }

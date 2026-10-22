@@ -25,6 +25,7 @@ import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.mongodb.WriteConcern;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.result.DeleteResult;
 
@@ -48,7 +49,11 @@ final class MongoDbDeleteBuilder extends AbstractRowDeletionBuilder {
             throw new UnsupportedOperationException("Unable to handle WHERE item in DELETE: " + whereItem.toSql());
         });
 
-        DeleteResult result = collection.deleteMany(query);
+        final WriteConcern writeConcern = _updateCallback.getWriteConcernAdvisor().adviceDeleteQuery(collection, query);
+
+        // note: withWriteConcern() returns a NEW collection - the write concern is not
+        // applied to the collection it is called upon.
+        DeleteResult result = collection.withWriteConcern(writeConcern).deleteMany(query);
         logger.info("Remove returned result: {}", result);
     }
 

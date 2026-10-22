@@ -38,14 +38,29 @@ import com.sugarcrm.ws.soap.SelectFields;
  * are only sparsely recognized by JAX-WS / JAXB.
  */
 final class SugarCrmXmlHelper {
-    
+
+    /**
+     * Creates the {@link DocumentBuilderFactory} that this module uses for its XML
+     * handling.
+     * <p>
+     * The factory is hardened against XML External Entity (XXE) attacks: it rejects
+     * documents that carry a <code>DOCTYPE</code> declaration and it never
+     * resolves external entities. See {@link SugarCrmXmlSecurity}.
+     * </p>
+     *
+     * @return a hardened document builder factory
+     */
+    static DocumentBuilderFactory createDocumentBuilderFactory() {
+        return SugarCrmXmlSecurity.createSafeDocumentBuilderFactory();
+    }
+
     public static SelectFields createSelectFields(List<Column> columns) {
         final SelectFields selectFields = new SelectFields();
         selectFields.setArrayType("xsd:string[]");
 
         final Document document;
         try {
-            document = DocumentBuilderFactory.newInstance().newDocumentBuilder().newDocument();
+            document = createDocumentBuilderFactory().newDocumentBuilder().newDocument();
         } catch (ParserConfigurationException e) {
             throw new IllegalStateException(e);
         }

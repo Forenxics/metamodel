@@ -37,23 +37,19 @@ import org.apache.metamodel.query.Query;
 import org.apache.metamodel.query.parser.QueryParserException;
 import org.apache.metamodel.schema.ColumnType;
 import org.apache.metamodel.schema.Table;
-import org.cassandraunit.utils.EmbeddedCassandraServerHelper;
 import org.junit.AfterClass;
 import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.Session;
+import com.datastax.oss.driver.api.core.CqlSession;
 
-public class CassandraDataContextTest {
+public class CassandraDataContextTest extends CassandraTestCase {
 
-    private static CassandraSimpleClient client = new CassandraSimpleClient();
-    private static Cluster cluster;
+    private static final CassandraSimpleClient client = new CassandraSimpleClient();
+    private static CqlSession session;
     private static CassandraDataContext dc;
 
-    private static final int defaultCassandraPort = 9142;
-    private static final String cassandraNode = "127.0.0.1";
     private static String keyspaceName = "my_keyspace";
     private static String testTableName = "songs";
     private static String testCounterTableName = "counter";
@@ -64,23 +60,24 @@ public class CassandraDataContextTest {
     private static String secondRowTitle = "My second song";
     private static String thirdRowTitle = "My third song";
     private static String urlName = "my_url";
-    
+
     @BeforeClass
     public static void setUpCluster() throws Exception {
-        try {
-            EmbeddedCassandraServerHelper.startEmbeddedCassandra(EmbeddedCassandraServerHelper.DEFAULT_CASSANDRA_YML_FILE);
-        } catch (Throwable e) {
-            // CassandraUnit not working working on JDK 9+, see https://github.com/jsevellec/cassandra-unit/issues/249
-            Assume.assumeTrue("Embedded Cassandra server didn't come up: " + e.getMessage(), false);
+        final CassandraDataContextTest testCase = new CassandraDataContextTest();
+        testCase.loadConfiguration();
+        if (!testCase.isConfigured()) {
+            Assume.assumeTrue(testCase.getInvalidConfigurationMessage(), false);
             return;
         }
-        client.connect(cassandraNode, defaultCassandraPort);
-        cluster = client.getCluster();
-        Session session = cluster.connect();
+
+        keyspaceName = testCase.getKeyspaceName();
+
+        client.connect(testCase.getHostname(), testCase.getPort(), testCase.getLocalDatacenter());
+        session = client.getSession();
         createCassandraKeySpaceAndTable(session);
         populateCassandraTableWithSomeData(session);
         populateCassandraCounterTableWithSomeData(session);
-        dc = new CassandraDataContext(cluster, keyspaceName);
+        dc = new CassandraDataContext(session, keyspaceName);
     }
 
     @AfterClass
@@ -211,7 +208,7 @@ public class CassandraDataContextTest {
     @Test
     public void testNonExistentKeystore() {
         try {
-            new CassandraDataContext(cluster, "nonExistentKeyspace");
+            new CassandraDataContext(session, "nonExistentKeyspace");
             fail();
         } catch (IllegalArgumentException e) {
             assertNotNull(e);
@@ -237,7 +234,11 @@ public class CassandraDataContextTest {
         }
     }
 
-    private static void createCassandraKeySpaceAndTable(Session session) {
+    /**
+     * Creates the keyspace that the tests use - if it does not exist yet - and the
+     * tables that hold the test fixtures.
+     */
+    private static void createCassandraKeySpaceAndTable(CqlSession session) {
         session.execute("CREATE KEYSPACE IF NOT EXISTS " + keyspaceName + " WITH replication "
                 + "= {'class':'SimpleStrategy', 'replication_factor':1};");
         session.execute("DROP TABLE IF EXISTS " + keyspaceName + "." + testTableName + ";");
@@ -249,19 +250,19 @@ public class CassandraDataContextTest {
                 + "counter_value counter, url_name varchar, PRIMARY KEY (url_name)" + ");");
     }
 
-    private static void populateCassandraTableWithSomeData(Session session) {
+    private static void populateCassandraTableWithSomeData(CqlSession session) {
         session.execute("INSERT INTO " + keyspaceName + "." + testTableName
                 + " (id, title, hit, duration, position, creationtime) " + "VALUES (" + firstRowId + ","
-                + "'My first song'," + "false," + "2.15," + "1," + "dateof(now()))" + ";");
+                + "'My first song'," + "false," + "2.15," + "1," + "dateof(now())" + ");");
         session.execute("INSERT INTO " + keyspaceName + "." + testTableName
                 + " (id, title, hit, duration, position, creationtime) " + "VALUES (" + secondRowId + ","
-                + "'My second song'," + "true," + "2.55," + "2," + "dateof(now()))" + ";");
+                + "'My second song'," + "true," + "2.55," + "2," + "dateof(now())" + ");");
         session.execute("INSERT INTO " + keyspaceName + "." + testTableName
                 + " (id, title, hit, duration, position, creationtime) " + "VALUES (" + thirdRowId + ","
-                + "'My third song'," + "false," + "3.15," + "3," + "dateof(now()))" + ";");
+                + "'My third song'," + "false," + "3.15," + "3," + "dateof(now())" + ");");
     }
 
-    private static void populateCassandraCounterTableWithSomeData(Session session) {
+    private static void populateCassandraCounterTableWithSomeData(CqlSession session) {
         session.execute("UPDATE " + keyspaceName + "." + testCounterTableName
                 + " SET counter_value = counter_value + 1 WHERE url_name='" + urlName + "';");
     }

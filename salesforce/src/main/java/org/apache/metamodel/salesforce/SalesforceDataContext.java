@@ -20,6 +20,7 @@ package org.apache.metamodel.salesforce;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.regex.Pattern;
 
 import org.apache.metamodel.MetaModelException;
 import org.apache.metamodel.QueryPostprocessDataContext;
@@ -67,6 +68,24 @@ public class SalesforceDataContext extends QueryPostprocessDataContext implement
     public static final String SOQL_TIME_FORMAT_OUT = "HH:mm:ssZZZ";
 
     private static final Logger logger = LoggerFactory.getLogger(SalesforceDataContext.class);
+
+    /**
+     * A single quoted SOQL string literal, where a single quote inside the string is escaped by
+     * doubling it.
+     */
+    private static final Pattern SOQL_STRING_LITERAL = Pattern.compile("'(?:[^']|'')*'");
+
+    /**
+     * A SOQL date or date/time literal, e.g. <code>2013-01-23</code> or
+     * <code>2013-01-23T00:00:00.000+0000</code>.
+     */
+    private static final Pattern SOQL_DATE_LITERAL = Pattern
+            .compile("\\d{4}-\\d{2}-\\d{2}(?:T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:?\\d{2})?)?");
+
+    /**
+     * A numeric SOQL literal.
+     */
+    private static final Pattern SOQL_NUMBER_LITERAL = Pattern.compile("\\b\\d+(?:\\.\\d+)?\\b");
 
     private final PartnerConnection _connection;
 
@@ -386,13 +405,42 @@ public class SalesforceDataContext extends QueryPostprocessDataContext implement
     }
 
     private QueryResult executeSoqlQuery(String query) {
-        logger.info("Executing SOQL query: {}", query);
+        logSoqlQuery(query);
         try {
             QueryResult queryResult = _connection.query(query);
             return queryResult;
         } catch (ConnectionException e) {
             throw SalesforceUtils.wrapException(e, "Failed to invoke query service");
         }
+    }
+
+    /**
+     * Logs a SOQL query at DEBUG level, with the literal values of the query removed. A SOQL query
+     * may contain literal values that are personal data (a name, an e-mail address, ...), so the
+     * query text must never be written to the log at INFO level.
+     *
+     * @param query the SOQL query that is about to be executed
+     */
+    static void logSoqlQuery(String query) {
+        logger.debug("Executing SOQL query: {}", redactSoqlLiterals(query));
+    }
+
+    /**
+     * Removes the literal values from a SOQL query, so that the query can be logged without leaking
+     * potentially personal data. The literals of a SOQL query are single quoted strings, numbers and
+     * date/time literals - all of them are replaced by a question mark.
+     *
+     * @param query the SOQL query
+     * @return the query with its literal values replaced by question marks
+     */
+    static String redactSoqlLiterals(String query) {
+        if (query == null) {
+            return null;
+        }
+        String redacted = SOQL_STRING_LITERAL.matcher(query).replaceAll("?");
+        redacted = SOQL_DATE_LITERAL.matcher(redacted).replaceAll("?");
+        redacted = SOQL_NUMBER_LITERAL.matcher(redacted).replaceAll("?");
+        return redacted;
     }
 
     @Override

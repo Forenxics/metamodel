@@ -22,11 +22,13 @@ import com.mongodb.WriteConcern;
 
 /**
  * Default {@link WriteConcernAdvisor}. Always returns
- * {@link WriteConcern#NORMAL}.
+ * {@link WriteConcern#ACKNOWLEDGED}.
  */
 public class DefaultWriteConcernAdvisor extends SimpleWriteConcernAdvisor {
 
     public DefaultWriteConcernAdvisor() {
-        super(WriteConcern.NORMAL);
+        // note: the 4.x driver has no WriteConcern.NORMAL constant - ACKNOWLEDGED is
+        // the equivalent of the NORMAL write concern of the 3.x driver.
+        super(WriteConcern.ACKNOWLEDGED);
     }
 }

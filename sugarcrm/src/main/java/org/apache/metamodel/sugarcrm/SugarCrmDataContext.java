@@ -81,7 +81,7 @@ public class SugarCrmDataContext extends QueryPostprocessDataContext implements 
         final String endpointAddress = sugarCrmBaseUrl + "/service/v4/soap.php";
         final String wsdlAddress = endpointAddress + "?wsdl";
 
-        logger.info("Connecting to SugarCRM SOAP service using WSDL URL: {}", wsdlAddress);
+        logger.info(wsdlUrlMessage(wsdlAddress));
 
         final URL wsdlUrl;
         try {
@@ -104,7 +104,7 @@ public class SugarCrmDataContext extends QueryPostprocessDataContext implements 
                 UserAuth userAuth = new UserAuth();
                 userAuth.setUserName(username);
                 userAuth.setPassword(md5password);
-                logger.debug("Logging in as '{}', with application name '{}'", username, applicationName);
+                logger.debug(loginMessage(username, applicationName));
                 EntryValue response = _service.login(userAuth, applicationName, new NameValueList());
                 String sessionId = response.getId();
                 logger.info(sessionStartedMessage(sessionId));
@@ -124,6 +124,34 @@ public class SugarCrmDataContext extends QueryPostprocessDataContext implements 
      */
     static String sessionStartedMessage(final String sessionId) {
         return "Started session with SugarCRM. Session ID: " + CredentialRedactor.redact(sessionId);
+    }
+
+    /**
+     * Creates the log message that is emitted when the WSDL of the SugarCRM service
+     * is used. The WSDL URL may carry credentials, so it is redacted before the
+     * message is written to the log.
+     *
+     * @param wsdlAddress
+     *            the WSDL URL of the SugarCRM service
+     * @return a log message that does not disclose any credentials
+     */
+    static String wsdlUrlMessage(final String wsdlAddress) {
+        return "Connecting to SugarCRM SOAP service using WSDL URL: " + CredentialRedactor.redactUrl(wsdlAddress);
+    }
+
+    /**
+     * Creates the log message that is emitted when the login is performed. The user
+     * name is part of the credentials of the account, so it is not included in the
+     * message.
+     *
+     * @param username
+     *            the name of the user that is logged in (not included in the message)
+     * @param applicationName
+     *            the name of the application that logs in
+     * @return a log message that does not disclose the user name
+     */
+    static String loginMessage(final String username, final String applicationName) {
+        return "Logging in with application name '" + applicationName + "'";
     }
 
     @Override

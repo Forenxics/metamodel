@@ -37,9 +37,10 @@ import org.apache.metamodel.util.SimpleTableDef;
 import org.bson.Document;
 import org.junit.Test;
 
-import com.mongodb.MongoClient;
-import com.mongodb.MongoClientURI;
+import com.mongodb.MongoException;
 import com.mongodb.WriteConcern;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 
@@ -52,7 +53,7 @@ public class MongoDbDataContextTest extends MongoDbTestCase {
     protected void setUp() throws Exception {
         super.setUp();
         if (isConfigured()) {
-            client = new MongoClient(new MongoClientURI("mongodb://" + getHostname() + ":27017"));
+            client = MongoClients.create("mongodb://" + getHostname() + ":27017");
             mongoDb = client.getDatabase(getDatabaseName());
         }
     }
@@ -111,7 +112,8 @@ public class MongoDbDataContextTest extends MongoDbTestCase {
 
         mongoDb.createCollection(getCollectionName());
         MongoCollection<Document> col = mongoDb.getCollection(getCollectionName());
-        col.withWriteConcern(WriteConcern.ACKNOWLEDGED);
+        // note: withWriteConcern() returns a NEW collection
+        col = col.withWriteConcern(WriteConcern.ACKNOWLEDGED);
         // create a couple of entries
 
         Document dbRow1 = new Document();
@@ -699,5 +701,123 @@ public class MongoDbDataContextTest extends MongoDbTestCase {
         } finally {
             ds1.close();
         }
+    }
+
+    /**
+     * Verifies that the adapter really performs the write against the MongoDB server and
+     * that the written document can be read back again - both directly through the
+     * driver and through the adapter. A write that silently degenerated into a no-op
+     * would leave the collection untouched and make this test fail.
+     */
+    @Test
+    public void testWriteIsPersistedAndReadBack() throws Exception {
+        if (!isConfigured()) {
+            System.err.println(getInvalidConfigurationMessage());
+            return;
+        }
+
+        mongoDb.createCollection(getCollectionName());
+        final MongoCollection<Document> col = mongoDb.getCollection(getCollectionName());
+
+        // seed a single document through the driver, so that the schema detection of
+        // the data context below finds the columns of the collection
+        col.insertOne(new Document("foo", "seed").append("baz", 1));
+
+        final MongoDbDataContext dc = new MongoDbDataContext(mongoDb);
+
+        dc.executeUpdate(new UpdateScript() {
+            @Override
+            public void run(UpdateCallback callback) {
+                callback.insertInto(getCollectionName()).value("foo", "bar").value("baz", 42).execute();
+            }
+        });
+
+        // the document must really have been written to the server
+        assertEquals(2, col.countDocuments());
+        final Document persisted = col.find(new Document("foo", "bar")).first();
+        assertNotNull(persisted);
+        assertEquals("bar", persisted.getString("foo"));
+        assertEquals(42, persisted.getInteger("baz").intValue());
+
+        // ... and it must be readable through the adapter as well
+        final DataSet ds = dc.query().from(getCollectionName()).select("foo").and("baz").where("foo").isEquals("bar")
+                .execute();
+        try {
+            assertTrue(ds.next());
+            assertEquals("Row[values=[bar, 42]]", ds.getRow().toString());
+            assertFalse(ds.next());
+        } finally {
+            ds.close();
+        }
+    }
+
+    /**
+     * Verifies that the write concern advised by the {@link WriteConcernAdvisor} is
+     * actually sent to the server. MongoDB rejects a write concern of w=5, so the write
+     * only fails if the advised write concern is really applied to the operation.
+     */
+    @Test
+    public void testAdvisedWriteConcernIsAppliedToInsert() throws Exception {
+        if (!isConfigured()) {
+            System.err.println(getInvalidConfigurationMessage());
+            return;
+        }
+
+        mongoDb.createCollection(getCollectionName());
+        final MongoCollection<Document> col = mongoDb.getCollection(getCollectionName());
+        col.insertOne(new Document("foo", "seed"));
+
+        final MongoDbDataContext dc = new MongoDbDataContext(mongoDb);
+        dc.setWriteConcernAdvisor(new SimpleWriteConcernAdvisor(new WriteConcern(5)));
+
+        try {
+            dc.executeUpdate(new UpdateScript() {
+                @Override
+                public void run(UpdateCallback callback) {
+                    callback.insertInto(getCollectionName()).value("foo", "bar").execute();
+                }
+            });
+            fail("Expected the insert to fail, because the advised write concern (w=5) is rejected by the server");
+        } catch (MongoException e) {
+            // expected: the server rejected the advised write concern
+        }
+
+        // the rejected write must not have been applied
+        assertEquals(1, col.countDocuments());
+    }
+
+    /**
+     * Verifies that the write concern advised for delete operations is actually sent to
+     * the server. MongoDB rejects a write concern of w=5, so the delete only fails if the
+     * advised write concern is really applied to the operation.
+     */
+    @Test
+    public void testAdvisedWriteConcernIsAppliedToDelete() throws Exception {
+        if (!isConfigured()) {
+            System.err.println(getInvalidConfigurationMessage());
+            return;
+        }
+
+        mongoDb.createCollection(getCollectionName());
+        final MongoCollection<Document> col = mongoDb.getCollection(getCollectionName());
+        col.insertOne(new Document("foo", "seed"));
+
+        final MongoDbDataContext dc = new MongoDbDataContext(mongoDb);
+        dc.setWriteConcernAdvisor(new SimpleWriteConcernAdvisor(new WriteConcern(5)));
+
+        try {
+            dc.executeUpdate(new UpdateScript() {
+                @Override
+                public void run(UpdateCallback callback) {
+                    callback.deleteFrom(getCollectionName()).where("foo").isEquals("seed").execute();
+                }
+            });
+            fail("Expected the delete to fail, because the advised write concern (w=5) is rejected by the server");
+        } catch (MongoException e) {
+            // expected: the server rejected the advised write concern
+        }
+
+        // the rejected delete must not have been applied
+        assertEquals(1, col.countDocuments());
     }
 }

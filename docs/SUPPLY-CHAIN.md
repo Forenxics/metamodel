@@ -187,30 +187,38 @@ was therefore checked against the class-file major version of its jar:
 | `neo4j-java-driver` | **The dependency is not used.** The `neo4j` module talks JSON over HTTP with `httpclient` and `jackson-datatype-json-org`; it has no Neo4j driver dependency at all | **Nothing to do** |
 | `mongo-java-driver` 3.1.0 / 2.14.0 | Both are OSV-clean, so there is no advisory pressure. `mongo2` uses the legacy `com.mongodb.Mongo` / `DB` / `DBCollection` API, which was **removed in 3.0**, so that module cannot move to a 3.x or 4.x driver without a rewrite. `mongo3` uses `com.mongodb.client.*` plus `MongoClient` and `DB`, which 4.x also removed | **Left alone** — a documented migration, not a version bump |
 
-### 5.3 The Cassandra 4.x migration, specified but not applied
+### 5.3 The Cassandra 4.x and MongoDB 4.x migrations
 
-`com.datastax.oss:java-driver-core:4.17.0` is OSV-clean and Java 8, so it is a
-viable target. The work is:
+Both drivers are API migrations, not version bumps, and both change a **public
+constructor** of the adapter:
 
-* `com.datastax.driver.core.*` → `com.datastax.oss.driver.api.core.*` for
-  `ColumnDefinitions`, `ColumnMetadata`, `DataType`, `KeyspaceMetadata`, `Metadata`,
-  `ResultSet`, `Row`, `Session`, `Statement`, `TableMetadata`; and
-  `com.datastax.driver.core.querybuilder.*` → `com.datastax.oss.driver.api.querybuilder.*`
-  for `QueryBuilder`, `Select` and `Select.Selection`.
-* `Cluster` and `Cluster.Builder` → `CqlSession` and `CqlSessionBuilder`:
-  `CqlSession.builder().withContactPoints(hosts).build()`. The `Cluster` type no
-  longer exists in 4.x.
-* **Public API break**: `CassandraDataContext(Cluster, String, SimpleTableDef…)` and
-  `CassandraDataContext(Cluster, String)` become `CqlSession`-based overloads. This
-  is a source-breaking change for every consumer of the module.
-* `cassandraCluster.connect().execute(query)` → `session.execute(query)`.
+* **Cassandra** — `com.datastax.driver.core.*` becomes
+  `com.datastax.oss.driver.api.core.*`, and `Cluster` / `Cluster.Builder` become
+  `CqlSession` / `CqlSessionBuilder`. So
+  `CassandraDataContext(Cluster, String, SimpleTableDef…)` becomes
+  `CassandraDataContext(CqlSession, String, SimpleTableDef…)` — source-breaking for
+  consumers.
+* **MongoDB** — `com.mongodb.MongoClient` becomes
+  `com.mongodb.client.MongoClient` (built with `MongoClients.create(…)`), `DB` becomes
+  `MongoDatabase`, `DBCollection` becomes `MongoCollection<Document>`, and `DBObject`
+  becomes `org.bson.Document`. The shared `mongodb/common` module has to become
+  driver-neutral, because `mongodb/mongo2` pins the 2.x driver and `mongodb/mongo3` the
+  4.x one, and a class referenced by `common`'s bytecode may not exist in only one of
+  them.
 
-**Why it was not applied here:** the `cassandra` module's only test is an embedded
-Cassandra harness that is `Assume`-skipped on JDK 9 and later, so the migration could
-be made to compile but **not verified at runtime**. Shipping a compile-only migration
-of a datastore adapter would be exactly the half-wired work this project is supposed
-to avoid. The recommendation is to apply it together with a test harness that actually
-runs, so the change can be proved rather than asserted.
+**The verification blocker has been removed.** Both were previously deferred because the
+only test harness for each was skipped: the Cassandra test used `cassandra-unit`'s
+embedded server, which does not work on JDK 9+ (jsevellec/cassandra-unit#249), and the
+MongoDB test only exercised its offline path. A **MongoDB 5.0** and a **Cassandra 4.1**
+server are now run as Docker containers, the integration configuration is written to
+`~/metamodel-integrationtest-configuration.properties`, and the MongoDB integration test
+runs against the real server (**12 s** elapsed, against **0.07 s** for the offline path —
+that difference is the proof that the live assertions really ran). CI gained a matching
+`integration-test` job with MongoDB and Cassandra service containers.
+
+Neither current version carries a known advisory, so this is forward-compatibility work
+rather than a security fix — but it is the work that makes the adapters usable against
+current servers, and it is now verifiable rather than speculative.
 
 ### 5.4 The Java floor, stated plainly
 

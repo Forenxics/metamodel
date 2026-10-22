@@ -20,7 +20,7 @@
 	<name>MetaModel module for Apache Cassandra database</name>
 
 	<properties>
-		<cassandra.driver.latest.version>3.11.5</cassandra.driver.latest.version>
+		<cassandra.driver.latest.version>4.17.0</cassandra.driver.latest.version>
 		<cassandraunit.latest.version>3.5.0.1</cassandraunit.latest.version>
 	</properties>
 
@@ -32,16 +32,30 @@
 		</dependency>
 		<!-- cassandra datastax driver -->
 		<dependency>
-			<groupId>com.datastax.cassandra</groupId>
-			<artifactId>cassandra-driver-core</artifactId>
+			<!--
+				The 4.x driver (com.datastax.oss:java-driver-core) replaces the
+				legacy com.datastax.cassandra:cassandra-driver-core. It is a
+				package-level migration, not a version bump: Cluster becomes
+				CqlSession and the metadata types move to
+				com.datastax.oss.driver.api.core.metadata.schema.
+			-->
+			<groupId>com.datastax.oss</groupId>
+			<artifactId>java-driver-core</artifactId>
 			<version>${cassandra.driver.latest.version}</version>
-			<!-- Excluded netty dependency -->
-			<exclusions>
-				<exclusion>
-					<groupId>io.netty</groupId>
-					<artifactId>netty-handler</artifactId>
-				</exclusion>
-			</exclusions>
+			<!--
+				No netty exclusion here any more: the 3.x driver bundled a
+				shaded netty, while the 4.x driver depends on netty 4.x
+				outright (NoClassDefFoundError: io/netty/channel/
+				DefaultEventLoopGroup without it).
+			-->
+		</dependency>
+		<dependency>
+			<!--
+				The 4.x driver splits the query builder into its own artifact.
+			-->
+			<groupId>com.datastax.oss</groupId>
+			<artifactId>java-driver-query-builder</artifactId>
+			<version>${cassandra.driver.latest.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>commons-io</groupId>
@@ -58,18 +72,6 @@
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
 			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.cassandraunit</groupId>
-			<artifactId>cassandra-unit</artifactId>
-			<version>${cassandraunit.latest.version}</version>
-			<scope>test</scope>
-			<exclusions>
-				<exclusion>
-					<groupId>javax.xml.stream</groupId>
-					<artifactId>stax-api</artifactId>
-				</exclusion>
-			</exclusions>
 		</dependency>
 	</dependencies>
 </project>

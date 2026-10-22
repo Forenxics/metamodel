@@ -103,7 +103,7 @@ public class DataContextFactoryBean implements FactoryBean<DataContext>, DataCon
             cls = Class.forName(_type.trim());
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
-                logger.debug("Failed to load type '" + _type + "' as a class", e);
+                logger.debug("Failed to load type '" + _type + "' as a class", CredentialRedactor.redactThrowable(e));
             }
             return null;
         }
@@ -121,7 +121,7 @@ public class DataContextFactoryBean implements FactoryBean<DataContext>, DataCon
                     .newInstance();
             return delegate;
         } catch (Exception e) {
-            logger.warn("Failed to instantiate delegate " + cls, e);
+            logger.warn("Failed to instantiate delegate " + cls, CredentialRedactor.redactThrowable(e));
             return null;
         }
     }

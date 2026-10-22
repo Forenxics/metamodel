@@ -41,6 +41,37 @@ public class CouchDbDataContextFactory extends AbstractDataContextFactory {
     @Override
     public DataContext create(DataContextProperties properties, ResourceFactoryRegistry resourceFactoryRegistry)
             throws UnsupportedDataContextPropertiesException, ConnectionException {
+        final StdHttpClient.Builder httpClientBuilder = createHttpClientBuilder(properties);
+
+        final HttpClient httpClient = httpClientBuilder.build();
+        final SimpleTableDef[] tableDefs = properties.getTableDefs();
+        if (tableDefs != null && tableDefs.length > 0) {
+            return new CouchDbDataContext(httpClient, tableDefs);
+        }
+
+        final String databaseNames = properties.getDatabaseName();
+        if (databaseNames != null && !databaseNames.isEmpty()) {
+            return new CouchDbDataContext(new StdCouchDbInstance(httpClient), databaseNames.split(","));
+        }
+
+        return new CouchDbDataContext(httpClient);
+    }
+
+    /**
+     * Creates and configures the {@link StdHttpClient.Builder} that the HTTP client is built from.
+     *
+     * <p>
+     * The credentials are only applied when they have actually been configured. Calling
+     * {@link StdHttpClient.Builder#username(String)} / {@link StdHttpClient.Builder#password(String)}
+     * unconditionally would overwrite the credentials that
+     * {@link StdHttpClient.Builder#url(String)} has already parsed out of the user info part of the
+     * URL - a URL with embedded credentials would end up being used without any credentials at all,
+     * and the server would answer with a 401.
+     *
+     * @param properties the data context properties
+     * @return a builder configured with the URL/host/port and the credentials
+     */
+    StdHttpClient.Builder createHttpClientBuilder(DataContextProperties properties) {
         final StdHttpClient.Builder httpClientBuilder = new StdHttpClient.Builder();
 
         final String url = properties.getUrl();
@@ -56,21 +87,16 @@ public class CouchDbDataContextFactory extends AbstractDataContextFactory {
             httpClientBuilder.enableSSL(getBoolean(properties.toMap().get("ssl"), false));
         }
 
-        httpClientBuilder.username(properties.getUsername());
-        httpClientBuilder.password(properties.getPassword());
-
-        final HttpClient httpClient = httpClientBuilder.build();
-        final SimpleTableDef[] tableDefs = properties.getTableDefs();
-        if (tableDefs != null && tableDefs.length > 0) {
-            return new CouchDbDataContext(httpClient, tableDefs);
+        final String username = properties.getUsername();
+        if (username != null) {
+            httpClientBuilder.username(username);
+        }
+        final String password = properties.getPassword();
+        if (password != null) {
+            httpClientBuilder.password(password);
         }
 
-        final String databaseNames = properties.getDatabaseName();
-        if (databaseNames != null && !databaseNames.isEmpty()) {
-            return new CouchDbDataContext(new StdCouchDbInstance(httpClient), databaseNames.split(","));
-        }
-
-        return new CouchDbDataContext(httpClient);
+        return httpClientBuilder;
     }
 
 }

@@ -55,9 +55,10 @@ final class MongoDbInsertionBuilder extends AbstractRowInsertionBuilder<MongoDbU
         final MongoDbUpdateCallback updateCallback = getUpdateCallback();
         final MongoCollection<Document> collection = updateCallback.getCollection(getTable().getName());
         final WriteConcern writeConcern = updateCallback.getWriteConcernAdvisor().adviceInsert(collection, doc);
-        collection.withWriteConcern(writeConcern);
 
-        collection.insertOne(doc);
+        // note: withWriteConcern() returns a NEW collection - the write concern is not
+        // applied to the collection it is called upon.
+        collection.withWriteConcern(writeConcern).insertOne(doc);
         logger.info("Document has been inserted");
     }
 }

@@ -33,12 +33,12 @@ under the License.
 			<artifactId>MetaModel-core</artifactId>
 			<version>${project.version}</version>
 		</dependency>
-		<dependency>
-			<groupId>org.mongodb</groupId>
-			<artifactId>mongo-java-driver</artifactId>
-			<version>3.1.0</version>
-			<scope>provided</scope>
-		</dependency>
+		<!--
+			Note: this module deliberately has NO dependency on the MongoDB Java driver.
+			It is shared by the MongoDB 2.x module (2.x driver) and the MongoDB 3.x/4.x
+			module (4.x driver), so its compiled bytecode must not reference any driver
+			type that only exists in one of those driver versions.
+		-->
 
 		<!-- Test dependencies -->
 		<dependency>

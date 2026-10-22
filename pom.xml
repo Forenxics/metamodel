@@ -939,7 +939,7 @@ under the License.
 								All of these only exist from Java 9 onwards, hence
 								the profile.
 							-->
-							<argLine>@{argLine} --add-opens java.base/java.lang=ALL-UNNAMED -Dtests.security.manager=false</argLine>
+							<argLine>@{argLine} -Xmx1g -XX:ErrorFile=target/hs_err_pid%p.log --add-opens java.base/java.lang=ALL-UNNAMED -Dtests.security.manager=false</argLine>
 						</configuration>
 					</plugin>
 				</plugins>

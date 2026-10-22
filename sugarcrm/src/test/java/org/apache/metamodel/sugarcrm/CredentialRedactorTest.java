@@ -124,4 +124,38 @@ public class CredentialRedactorTest {
         final String logged = LoggingMessageHandler.redactPayload(payload);
         assertFalse("The session ID must not be disclosed: " + logged, logged.contains(SECRET));
     }
+
+    /**
+     * The WSDL URL that is logged may carry credentials.
+     */
+    @Test
+    public void testWsdlUrlMessageDoesNotDiscloseCredentials() {
+        final String url = "http://admin:" + SECRET + "@sugarcrm.example.com/sugar/service/v4/soap.php?wsdl";
+        final String message = SugarCrmDataContext.wsdlUrlMessage(url);
+        assertFalse("The password must not be disclosed: " + message, message.contains(SECRET));
+        assertFalse("The user name must not be disclosed: " + message, message.contains("admin"));
+        assertTrue(message.contains("sugarcrm.example.com/sugar/service/v4/soap.php"));
+    }
+
+    /**
+     * The WSDL URL that is logged may carry credentials as query parameters.
+     */
+    @Test
+    public void testWsdlUrlMessageWithQueryParametersDoesNotDiscloseCredentials() {
+        final String url = "http://sugarcrm.example.com/soap.php?wsdl&user=admin&password=" + SECRET;
+        final String message = SugarCrmDataContext.wsdlUrlMessage(url);
+        assertFalse("The password must not be disclosed: " + message, message.contains(SECRET));
+        assertFalse("The user name must not be disclosed: " + message, message.contains("admin"));
+        assertTrue(message.contains("sugarcrm.example.com/soap.php"));
+    }
+
+    /**
+     * The user name is part of the credentials of the account and must not be logged.
+     */
+    @Test
+    public void testLoginMessageDoesNotDiscloseUserName() {
+        final String message = SugarCrmDataContext.loginMessage("admin", "MetaModel");
+        assertFalse("The user name must not be disclosed: " + message, message.contains("admin"));
+        assertTrue(message.contains("MetaModel"));
+    }
 }

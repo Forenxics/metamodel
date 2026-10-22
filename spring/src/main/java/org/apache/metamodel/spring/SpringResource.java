@@ -57,7 +57,10 @@ public class SpringResource extends AbstractResource implements Resource {
         try {
             return _resource.lastModified();
         } catch (IOException e) {
-            logger.warn("Failed to get last modified date of resource: " + _resource, e);
+            // The resource may be a URL that carries credentials.
+            logger.warn("Failed to get last modified date of resource: "
+                    + CredentialRedactor.redactUrl(String.valueOf(_resource)),
+                    CredentialRedactor.redactThrowable(e));
             return -1;
         }
     }

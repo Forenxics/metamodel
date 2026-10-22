@@ -35,7 +35,13 @@ under the License.
 		<dependency>
 			<groupId>com.amazonaws</groupId>
 			<artifactId>aws-java-sdk-dynamodb</artifactId>
-			<version>1.11.500</version>
+			<!--
+				1.11.x is built against jackson-databind < 2.12 and fails with
+				"NoClassDefFoundError: com/fasterxml/jackson/databind/
+				PropertyNamingStrategy$PascalCaseStrategy" against the jackson
+				version the project now uses. The 1.12.x line is compatible.
+			-->
+			<version>1.12.780</version>
 			<exclusions>
 				<exclusion>
 					<groupId>commons-logging</groupId>

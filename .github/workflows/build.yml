@@ -68,6 +68,60 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  integration-test:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    # The datastore-backed tests are enabled by the presence of
+    # ~/metamodel-integrationtest-configuration.properties, not by a profile.
+    # They need real servers, so they run on the default branch and on the
+    # weekly schedule rather than on every pull request.
+    if: github.event_name == 'schedule' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    services:
+      mongodb:
+        image: mongo:5.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongo --quiet --eval 'db.runCommand({ ping: 1 }).ok'"
+          --health-interval 10s --health-timeout 5s --health-retries 10
+      cassandra:
+        image: cassandra:4.1
+        ports:
+          - 9042:9042
+        options: >-
+          --health-cmd "cqlsh -e 'describe keyspaces'"
+          --health-interval 15s --health-timeout 10s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Write the integration test configuration
+        run: |
+          # The CouchDB entry is deliberately left out: the unmaintained ektorp
+          # client (1.5.0, 2016) cannot parse the revision id returned by
+          # CouchDB 2.3+, so its insert path fails. See
+          # docs/DEFECT-REGISTER.md.
+          grep -v '^couchdb\.' travis-metamodel-integrationtest-configuration.properties \
+            > "$HOME/metamodel-integrationtest-configuration.properties"
+          cat "$HOME/metamodel-integrationtest-configuration.properties"
+
+      - name: Integration tests
+        run: mvn -B -ntp clean install
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-reports
+          path: '**/target/surefire-reports/'
+          if-no-files-found: ignore
+          retention-days: 14
+
   dependency-check:
     name: Dependency CVE scan
     runs-on: ubuntu-latest
@@ -84,7 +138,9 @@ jobs:
           cache: maven
 
       - name: OWASP dependency-check
-        continue-on-error: true
+        # Without an NVD API key the vulnerability feed download takes hours,
+        # so the scan is skipped rather than run half-way.
+        if: ${{ secrets.NVD_API_KEY != '' }}
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
@@ -94,8 +150,12 @@ jobs:
             -Dformat=HTML,SARIF \
             -DsuppressionFile=docs/dependency-check-suppressions.xml
 
+      - name: OWASP dependency-check skipped
+        if: ${{ secrets.NVD_API_KEY == '' }}
+        run: echo "NVD_API_KEY is not configured - the dependency CVE scan was skipped."
+
       - name: Upload dependency-check report
-        if: always()
+        if: always() && ${{ secrets.NVD_API_KEY != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: dependency-check-report

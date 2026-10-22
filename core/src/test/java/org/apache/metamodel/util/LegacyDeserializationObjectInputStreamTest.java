@@ -24,6 +24,10 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InvalidClassException;
 import java.io.ObjectOutputStream;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.metamodel.query.OperatorType;
 import org.apache.metamodel.query.Query;
@@ -91,6 +95,13 @@ public class LegacyDeserializationObjectInputStreamTest extends TestCase {
         assertEquals("Column[name=mycol1,columnNumber=1,type=VARCHAR,nullable=true,nativeType=text,columnSize=255]",
                 table.getColumn(1).toString());
 
+        // The legacy enum constants are replaced by the canonical modern ones
+        // while they are read - the same reason as for the operator.
+        assertSame("the legacy column type must be resolved to the canonical constant",
+                org.apache.metamodel.schema.ColumnType.INTEGER, table.getColumn(0).getType());
+        assertSame("the legacy column type must be resolved to the canonical constant",
+                org.apache.metamodel.schema.ColumnType.VARCHAR, table.getColumn(1).getType());
+
         assertEquals("SELECT mytable.\"mycol1\" FROM myschema.mytable WHERE mytable.mycol1 = 'foo'", q.toSql());
     }
 
@@ -114,6 +125,39 @@ public class LegacyDeserializationObjectInputStreamTest extends TestCase {
                 operator instanceof OperatorType);
         assertEquals(OperatorType.EQUALS_TO, operator);
         assertEquals("=", operator.toSql());
+        // The legacy enum constant has to be replaced by the canonical
+        // constant while it is read: java.lang.Enum declares both equals()
+        // and hashCode() as final and identity-based, so a legacy constant
+        // can never satisfy the equals/hashCode contract of the modern
+        // implementation.
+        assertSame("the legacy operator must be resolved to the canonical constant",
+                OperatorType.EQUALS_TO, operator);
+    }
+
+    /**
+     * An operator that is read from a legacy stream must honour the
+     * equals()/hashCode() contract. If it did not, the operator and
+     * {@link OperatorType#EQUALS_TO} could both end up in the same
+     * {@link HashSet} - and a {@link HashMap} lookup by an equal key would
+     * miss.
+     */
+    public void testLegacyOperatorHonoursEqualsHashCodeContract() throws Exception {
+        final Object obj = readLegacyQuery();
+        assertTrue(obj instanceof Query);
+
+        final Query q = (Query) obj;
+        final OperatorType operator = q.getWhereClause().getItem(0).getOperator();
+
+        final Set<OperatorType> operators = new HashSet<>();
+        operators.add(OperatorType.EQUALS_TO);
+        operators.add(operator);
+        assertEquals("the legacy operator and OperatorType.EQUALS_TO must be the same value", 1,
+                operators.size());
+
+        final Map<OperatorType, String> map = new HashMap<>();
+        map.put(OperatorType.EQUALS_TO, "value");
+        assertEquals("value", map.get(operator));
+        assertEquals(OperatorType.EQUALS_TO.hashCode(), operator.hashCode());
     }
 
     /**

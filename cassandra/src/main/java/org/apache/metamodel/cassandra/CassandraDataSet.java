@@ -31,15 +31,15 @@ import org.apache.metamodel.schema.Column;
 
 /**
  * A {@link DataSet} implementation that wraps a iterator of
- * {@link com.datastax.driver.core.Row}.
+ * {@link com.datastax.oss.driver.api.core.cql.Row}.
  */
 final class CassandraDataSet extends AbstractDataSet {
 
-    private final Iterator<com.datastax.driver.core.Row> _cursor;
+    private final Iterator<com.datastax.oss.driver.api.core.cql.Row> _cursor;
 
-    private volatile com.datastax.driver.core.Row _dbObject;
+    private volatile com.datastax.oss.driver.api.core.cql.Row _dbObject;
 
-    public CassandraDataSet(Iterator<com.datastax.driver.core.Row> cursor, List<Column> columns) {
+    public CassandraDataSet(Iterator<com.datastax.oss.driver.api.core.cql.Row> cursor, List<Column> columns) {
         super(columns.stream().map(SelectItem::new).collect(Collectors.toList()));
         _cursor = cursor;
     }

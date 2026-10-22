@@ -36,6 +36,10 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
  * {@link DataContextFactory} for DynamoDB.
  * 
  * Properties used are: username, password, region and table defs.
+ * 
+ * The "username" (AWS access key ID) and "password" (AWS secret access key) properties must either
+ * both be specified or both be left out. When they are left out, the AWS default credentials
+ * provider chain is used.
  */
 public class DynamoDbDataContextFactory extends AbstractDataContextFactory {
 
@@ -59,9 +63,25 @@ public class DynamoDbDataContextFactory extends AbstractDataContextFactory {
     }
 
     private AWSCredentialsProvider getCredentials(DataContextProperties properties) {
-        if (properties.getUsername() != null) {
-            final BasicAWSCredentials credentials =
-                    new BasicAWSCredentials(properties.getUsername(), properties.getPassword());
+        final String username = properties.getUsername();
+        final String password = properties.getPassword();
+        if (username != null && password == null) {
+            // Failing fast here: the AWS SDK would otherwise throw
+            // IllegalArgumentException("Secret key cannot be null.") from deep inside the SDK,
+            // which says nothing about which of the MetaModel properties is missing.
+            throw new IllegalArgumentException("The DynamoDB data context was configured with a 'username' "
+                    + "(AWS access key ID) but without a 'password' (AWS secret access key). Please also "
+                    + "specify the 'password' property, or omit both properties in order to use the AWS default "
+                    + "credentials provider chain.");
+        }
+        if (username == null && password != null) {
+            throw new IllegalArgumentException("The DynamoDB data context was configured with a 'password' "
+                    + "(AWS secret access key) but without a 'username' (AWS access key ID). Please also "
+                    + "specify the 'username' property, or omit both properties in order to use the AWS default "
+                    + "credentials provider chain.");
+        }
+        if (username != null) {
+            final BasicAWSCredentials credentials = new BasicAWSCredentials(username, password);
             return new AWSStaticCredentialsProvider(credentials);
         } else {
             return DefaultAWSCredentialsProviderChain.getInstance();

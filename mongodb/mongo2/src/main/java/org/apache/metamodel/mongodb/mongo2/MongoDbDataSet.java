@@ -79,7 +79,7 @@ final class MongoDbDataSet extends AbstractDataSet {
 
     @Override
     public Row getRow() {
-        return MongoDBUtils.toRow(_dbObject, getHeader());
+        return MongoDBUtils.toRow(MongoDbDataContext.toPlainMap(_dbObject), getHeader());
     }
 
 }

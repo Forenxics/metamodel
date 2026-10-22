@@ -60,7 +60,10 @@ public class JdbcDataContextFactoryBeanDelegate extends AbstractDataContextFacto
                     connection = DriverManager.getConnection(url, params.getUsername(), params.getPassword());
                 }
             } catch (Exception e) {
-                logger.error("Failed to get JDBC connection using URL: " + url, e);
+                // The URL routinely carries credentials, and the driver's exception
+                // usually repeats it - so neither may be written to the log as is.
+                logger.error("Failed to get JDBC connection using URL: " + CredentialRedactor.redactUrl(url),
+                        CredentialRedactor.redactThrowable(e));
                 throw new IllegalStateException("Failed to get JDBC connection", e);
             }
 

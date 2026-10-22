@@ -27,11 +27,16 @@ import org.apache.metamodel.factory.DataContextProperties;
 import org.apache.metamodel.factory.ResourceFactoryRegistry;
 import org.apache.metamodel.factory.UnsupportedDataContextPropertiesException;
 
-import com.datastax.driver.core.Cluster;
-import com.datastax.driver.core.Cluster.Builder;
-import com.google.common.base.Strings;
+import com.datastax.oss.driver.api.core.CqlSession;
+import com.datastax.oss.driver.api.core.CqlSessionBuilder;
 
 public class CassandraDataContextFactory extends AbstractDataContextFactory {
+
+    /**
+     * The name of the property that holds the name of the datacenter that is
+     * local to the client. The 4.x driver refuses to start a session without it.
+     */
+    public static final String LOCAL_DATACENTER_PROPERTY = "localDatacenter";
 
     @Override
     protected String getType() {
@@ -43,30 +48,39 @@ public class CassandraDataContextFactory extends AbstractDataContextFactory {
             throws UnsupportedDataContextPropertiesException, ConnectionException {
 
         final Map<String, Object> map = properties.toMap();
-        final Builder clusterBuilder = Cluster.builder();
+        final CqlSessionBuilder sessionBuilder = CqlSession.builder();
 
         final String hostname = properties.getHostname();
-        if (!Strings.isNullOrEmpty(hostname)) {
-            clusterBuilder.addContactPoints(hostname.split(","));
+        if (hostname != null && !hostname.trim().isEmpty()) {
+            final int port = properties.getPort() == null ? CassandraDataContext.DEFAULT_PORT
+                    : properties.getPort().intValue();
+            sessionBuilder.addContactPoints(CassandraDataContext.parseContactPoints(hostname, port));
         }
 
-        if (properties.getPort() != null) {
-            clusterBuilder.withPort(properties.getPort());
-        }
+        // The 4.x driver will not start a session without being told which
+        // datacenter is local to the client.
+        final String localDatacenter = getString(map.get(LOCAL_DATACENTER_PROPERTY),
+                CassandraDataContext.DEFAULT_LOCAL_DATACENTER);
+        sessionBuilder.withLocalDatacenter(localDatacenter);
 
         if (map.containsKey("cluster-name")) {
-            clusterBuilder.withClusterName((String) map.get("cluster-name"));
+            // The 4.x driver has no notion of a cluster name - the name of the
+            // cluster is read-only metadata - so it is used as the name that this
+            // client announces to the server.
+            sessionBuilder.withApplicationName((String) map.get("cluster-name"));
         }
 
         if (properties.getUsername() != null && properties.getPassword() != null) {
-            clusterBuilder.withCredentials(properties.getUsername(), properties.getPassword());
+            sessionBuilder.withAuthCredentials(properties.getUsername(), properties.getPassword());
         }
 
-        final Cluster cluster = clusterBuilder.build();
+        final CqlSession session = sessionBuilder.build();
 
         final String keySpace = getString(map.get("keyspace"), properties.getDatabaseName());
 
-        return new CassandraDataContext(cluster, keySpace, properties.getTableDefs());
+        // The session was created here, so the context takes ownership of it and
+        // releases it when the context is closed.
+        return new CassandraDataContext(session, keySpace, true, properties.getTableDefs());
     }
 
 }

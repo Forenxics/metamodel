@@ -40,6 +40,7 @@ import org.apache.metamodel.data.InMemoryDataSet;
 import org.apache.metamodel.data.Row;
 import org.apache.metamodel.delete.DeleteFrom;
 import org.apache.metamodel.elasticsearch.common.ElasticSearchUtils;
+import org.apache.metamodel.factory.DataContextPropertiesImpl;
 import org.apache.metamodel.query.FunctionType;
 import org.apache.metamodel.query.Query;
 import org.apache.metamodel.query.SelectItem;
@@ -54,6 +55,9 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.transport.client.PreBuiltTransportClient;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -99,6 +103,28 @@ public class ElasticSearchDataContextTest extends ESSingleNodeTestCase {
     @After
     public void afterTests() {
         client.admin().indices().delete(new DeleteIndexRequest("_all")).actionGet();
+    }
+
+    /**
+     * The Elasticsearch 7.x transport client rejects any setting that it does not know, so the
+     * settings that {@link ElasticSearchDataContextFactory} produces must be accepted by the
+     * client. Before the fix the factory also put a "name" setting into the settings, which made
+     * every attempt to create a transport data context fail with "unknown setting [name]".
+     */
+    @Test
+    public void testTransportClientAcceptsTheFactorySettings() {
+        final DataContextPropertiesImpl properties = new DataContextPropertiesImpl();
+        properties.put("type", "es-transport");
+        properties.put("cluster", "metamodel-test-cluster");
+        properties.put("hostname", "localhost");
+        properties.put("port", 9300);
+        properties.put("database", "my-index");
+
+        final Settings settings = new ElasticSearchDataContextFactory().createTransportSettings(properties);
+
+        try (TransportClient transportClient = new PreBuiltTransportClient(settings)) {
+            assertNotNull(transportClient);
+        }
     }
 
     @Test

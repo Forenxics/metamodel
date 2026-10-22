@@ -34,7 +34,8 @@ import org.apache.metamodel.schema.Schema;
 import org.apache.metamodel.schema.Table;
 import org.apache.metamodel.util.FileHelper;
 
-import com.mongodb.MongoClient;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
 
 
@@ -65,7 +66,7 @@ public class MongoDbDataCopyer {
                 + ")derby_testdb;territory=en");
         connection.setReadOnly(true);
 
-        MongoClient client =  new MongoClient();
+        MongoClient client = MongoClients.create();
         MongoDatabase mongoDb = client.getDatabase("orderdb_copy");
 
         DataContext sourceDataContext = new JdbcDataContext(connection);

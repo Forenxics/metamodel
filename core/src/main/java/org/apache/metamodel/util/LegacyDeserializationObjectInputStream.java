@@ -237,6 +237,42 @@ public class LegacyDeserializationObjectInputStream extends ObjectInputStream {
 
     public LegacyDeserializationObjectInputStream(InputStream in) throws IOException, SecurityException {
         super(in);
+        // The resolveObject() hook is used to replace the legacy enum
+        // constants with the canonical modern ones while they are read.
+        enableResolveObject(true);
+    }
+
+    /**
+     * Replaces the legacy enum constants with the canonical, modern constants
+     * that they represent.
+     * <p>
+     * {@link java.lang.Enum} declares both {@code equals(Object)} and
+     * {@code hashCode()} as final and identity-based, so a legacy enum
+     * constant can never fulfil the {@code equals}/{@code hashCode} contract of
+     * the modern implementation classes. A legacy operator would be equal to
+     * {@link OperatorType#EQUALS_TO} while hashing differently, which means
+     * that the two could end up in the same {@link java.util.HashSet} - and
+     * that a {@link java.util.HashMap} lookup by an equal key would miss.
+     * Substituting the canonical constant while the object is read is the only
+     * way to keep such an object out of the deserialized object graph.
+     *
+     * @param obj
+     *            the object that was read from the stream
+     * @return the canonical constant that the object represents, or the object
+     *         itself if it is not a legacy constant
+     */
+    @Override
+    protected Object resolveObject(Object obj) throws IOException {
+        if (obj instanceof LegacyOperatorType) {
+            return ((LegacyOperatorType) obj)._delegate;
+        }
+        if (obj instanceof LegacyColumnType) {
+            return ((LegacyColumnType) obj)._delegate;
+        }
+        if (obj instanceof LegacyFunctionType) {
+            return ((LegacyFunctionType) obj)._delegate;
+        }
+        return obj;
     }
 
     /**

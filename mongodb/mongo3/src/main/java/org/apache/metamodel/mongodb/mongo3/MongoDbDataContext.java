@@ -18,6 +18,7 @@
  */
 package org.apache.metamodel.mongodb.mongo3;
 
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -62,9 +63,10 @@ import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.mongodb.DB;
 import com.mongodb.WriteConcern;
 import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
@@ -76,11 +78,12 @@ import com.mongodb.client.MongoIterable;
  * Since MongoDB has no schema, a virtual schema will be used in this DataContext. This implementation supports either
  * automatic discovery of a schema or manual specification of a schema, through the {@link SimpleTableDef} class.
  */
-public class MongoDbDataContext extends QueryPostprocessDataContext implements UpdateableDataContext {
+public class MongoDbDataContext extends QueryPostprocessDataContext implements UpdateableDataContext, Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(MongoDbDataSet.class);
 
     private final MongoDatabase _mongoDb;
+    private final MongoClient _ownedClient;
     private final SimpleTableDef[] _tableDefs;
     private WriteConcernAdvisor _writeConcernAdvisor;
     private Schema _schema;
@@ -95,10 +98,7 @@ public class MongoDbDataContext extends QueryPostprocessDataContext implements U
      *            {@link #detectTable(MongoDatabase, String)} ).
      */
     public MongoDbDataContext(MongoDatabase mongoDb, SimpleTableDef... tableDefs) {
-        super(false);
-        _mongoDb = mongoDb;
-        _tableDefs = tableDefs;
-        _schema = null;
+        this(mongoDb, tableDefs, null);
     }
 
     /**
@@ -112,8 +112,66 @@ public class MongoDbDataContext extends QueryPostprocessDataContext implements U
     }
 
     /**
-     * Performs an analysis of the available collections in a Mongo {@link DB} instance and tries to detect the table's
-     * structure based on the first 1000 documents in each collection.
+     * Constructs a {@link MongoDbDataContext} using a {@link MongoClient} provided by the caller.
+     * <p>
+     * The client is <b>not</b> closed by this data context - the caller retains the ownership of the client and is
+     * responsible for closing it.
+     *
+     * @param mongoClient the mongo client
+     * @param databaseName the name of the database to use
+     * @param tableDefs an array of {@link SimpleTableDef}s, which define the table and column model of the mongo db
+     *            collections. (consider using {@link #detectSchema(MongoDatabase)} or
+     *            {@link #detectTable(MongoDatabase, String)} ).
+     */
+    public MongoDbDataContext(MongoClient mongoClient, String databaseName, SimpleTableDef... tableDefs) {
+        this(mongoClient.getDatabase(databaseName), tableDefs, null);
+    }
+
+    /**
+     * Constructs a {@link MongoDbDataContext} that connects to a MongoDB server itself, based on the given connection
+     * string.
+     * <p>
+     * The client that is created by this constructor is owned by this data context and is closed by
+     * {@link #close()}.
+     *
+     * @param connectionString the MongoDB connection string, eg. {@code mongodb://localhost:27017}
+     * @param databaseName the name of the database to use
+     * @param tableDefs an array of {@link SimpleTableDef}s, which define the table and column model of the mongo db
+     *            collections. (consider using {@link #detectSchema(MongoDatabase)} or
+     *            {@link #detectTable(MongoDatabase, String)} ).
+     */
+    public MongoDbDataContext(String connectionString, String databaseName, SimpleTableDef... tableDefs) {
+        this(MongoClients.create(connectionString), databaseName, tableDefs, true);
+    }
+
+    private MongoDbDataContext(MongoClient mongoClient, String databaseName, SimpleTableDef[] tableDefs, boolean owned) {
+        this(mongoClient.getDatabase(databaseName), tableDefs, owned ? mongoClient : null);
+    }
+
+    private MongoDbDataContext(MongoDatabase mongoDb, SimpleTableDef[] tableDefs, MongoClient ownedClient) {
+        super(false);
+        _mongoDb = mongoDb;
+        _ownedClient = ownedClient;
+        _tableDefs = tableDefs;
+        _schema = null;
+    }
+
+    /**
+     * Closes the resources that are owned by this data context.
+     * <p>
+     * Only a client that was created by this data context is closed. A client (or database) that was provided by the
+     * caller stays the responsibility of the caller.
+     */
+    @Override
+    public void close() {
+        if (_ownedClient != null) {
+            _ownedClient.close();
+        }
+    }
+
+    /**
+     * Performs an analysis of the available collections in a Mongo {@link MongoDatabase} instance and tries to detect the
+     * table's structure based on the first 1000 documents in each collection.
      *
      * @param mongoDb the mongo db to inspect
      * @return a mutable schema instance, useful for further fine tuning by the user.
@@ -131,8 +189,8 @@ public class MongoDbDataContext extends QueryPostprocessDataContext implements U
     }
 
     /**
-     * Performs an analysis of an available collection in a Mongo {@link DB} instance and tries to detect the table
-     * structure based on the first 1000 documents in the collection.
+     * Performs an analysis of an available collection in a Mongo {@link MongoDatabase} instance and tries to detect the
+     * table structure based on the first 1000 documents in the collection.
      *
      * @param mongoDb the mongo DB
      * @param collectionName the name of the collection
@@ -226,7 +284,7 @@ public class MongoDbDataContext extends QueryPostprocessDataContext implements U
         }
 
         logger.info("Executing MongoDB 'count' query: {}", query);
-        final long count = collection.count(query);
+        final long count = collection.countDocuments(query);
 
         return count;
     }
@@ -597,8 +655,8 @@ public class MongoDbDataContext extends QueryPostprocessDataContext implements U
     }
 
     /**
-     * Gets the {@link DB} instance that this {@link DataContext} is backed by.
-     * 
+     * Gets the {@link MongoDatabase} instance that this {@link DataContext} is backed by.
+     *
      * @return
      */
     public MongoDatabase getMongoDb() {

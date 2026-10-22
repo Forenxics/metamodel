@@ -20,9 +20,10 @@ package org.apache.metamodel;
 
 import java.io.File;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.sql.Connection;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -58,12 +59,8 @@ import org.ektorp.http.StdHttpClient.Builder;
 import org.elasticsearch.client.Client;
 import org.xml.sax.InputSource;
 
-import com.datastax.driver.core.Cluster;
+import com.datastax.oss.driver.api.core.CqlSession;
 import com.google.common.base.Strings;
-import com.mongodb.MongoClient;
-import com.mongodb.MongoCredential;
-import com.mongodb.ServerAddress;
-import com.mongodb.client.MongoDatabase;
 
 /**
  * A factory for DataContext objects. This class substantially easens the task
@@ -557,35 +554,50 @@ public class DataContextFactory {
      *            should be autodetected.
      * @return a DataContext object that matches the request
      */
-    @SuppressWarnings("resource")
     public static UpdateableDataContext createMongoDbDataContext(String hostname, Integer port, String databaseName,
             String username, char[] password, SimpleTableDef[] tableDefs) {
         try {
-            final ServerAddress serverAddress;
-            if (port == null) {
-                serverAddress = new ServerAddress(hostname);
-            } else {
-                serverAddress = new ServerAddress(hostname, port);
+            // Build a connection string rather than a client, so that the data
+            // context owns the client and closes it - a client created here and
+            // handed to the context would otherwise never be closed.
+            final StringBuilder connectionString = new StringBuilder("mongodb://");
+            if (!Strings.isNullOrEmpty(username)) {
+                connectionString.append(encodeMongoUriComponent(username)).append(':')
+                        .append(encodeMongoUriComponent(new String(password))).append('@');
             }
-            final MongoClient mongoClient;
-            final MongoDatabase mongoDb;
-            if (Strings.isNullOrEmpty(username)) {
-                mongoClient = new MongoClient(serverAddress);
-            } else {
-                final MongoCredential credential = MongoCredential.createCredential(username, databaseName, password);
-                mongoClient = new MongoClient(serverAddress, Arrays.asList(credential));
+            connectionString.append(hostname);
+            if (port != null) {
+                connectionString.append(':').append(port);
             }
-            mongoDb = mongoClient.getDatabase(databaseName);
+            // The database in the path is also the default authentication source.
+            connectionString.append('/').append(encodeMongoUriComponent(databaseName));
 
             if (tableDefs == null || tableDefs.length == 0) {
-                return new MongoDbDataContext(mongoDb);
+                return new MongoDbDataContext(connectionString.toString(), databaseName);
             }
-            return new MongoDbDataContext(mongoDb, tableDefs);
+            return new MongoDbDataContext(connectionString.toString(), databaseName, tableDefs);
         } catch (Exception e) {
             if (e instanceof RuntimeException) {
                 throw (RuntimeException) e;
             }
             throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * Percent-encodes a value for use in a MongoDB connection string. The JDK's
+     * {@code URLEncoder} encodes for form data, so a space would become a
+     * {@code +} rather than {@code %20}.
+     *
+     * @param value
+     *            the value to encode
+     * @return the percent-encoded value
+     */
+    private static String encodeMongoUriComponent(String value) {
+        try {
+            return URLEncoder.encode(value, "UTF-8").replace("+", "%20");
+        } catch (UnsupportedEncodingException e) {
+            throw new IllegalStateException("UTF-8 is not supported by this JVM", e);
         }
     }
 
@@ -700,15 +712,34 @@ public class DataContextFactory {
 
     /**
      * Creates a new Cassandra datacontext.
-     * 
-     * @param cluster
-     *            The Cassandra client
+     *
+     * @param session
+     *            The Cassandra session. The session is owned by the caller and is
+     *            <b>not</b> closed by the returned data context.
      * @param keySpaceName
      *            The Cassandra key space name
      * @return a DataContext object that matches the request
      */
-    public static DataContext createCassandraDataContext(Cluster cluster, String keySpaceName) {
-        return new CassandraDataContext(cluster, keySpaceName);
+    public static DataContext createCassandraDataContext(CqlSession session, String keySpaceName) {
+        return new CassandraDataContext(session, keySpaceName);
+    }
+
+    /**
+     * Creates a new Cassandra datacontext that connects to Cassandra itself.
+     *
+     * @param contactPoints
+     *            the Cassandra contact points, comma separated
+     * @param port
+     *            the Cassandra native port, or null for the default (9042)
+     * @param localDatacenter
+     *            the local datacenter name, as the 4.x driver requires it
+     * @param keySpaceName
+     *            The Cassandra key space name
+     * @return a DataContext object that matches the request
+     */
+    public static DataContext createCassandraDataContext(String contactPoints, Integer port, String localDatacenter,
+            String keySpaceName) {
+        return new CassandraDataContext(contactPoints, port == null ? 9042 : port, localDatacenter, keySpaceName);
     }
     
 	/**

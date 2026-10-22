@@ -18,6 +18,8 @@
  */
 package org.apache.metamodel.neo4j;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -51,7 +53,8 @@ import org.slf4j.LoggerFactory;
 /**
  * DataContext implementation for Neo4j
  */
-public class Neo4jDataContext extends QueryPostprocessDataContext implements DataContext, DocumentSourceProvider {
+public class Neo4jDataContext extends QueryPostprocessDataContext implements DataContext, DocumentSourceProvider,
+        Closeable {
     public static final String SCHEMA_NAME = "neo4j";
     public static final int DEFAULT_PORT = 7474;
 
@@ -71,13 +74,21 @@ public class Neo4jDataContext extends QueryPostprocessDataContext implements Dat
     private final SimpleTableDef[] _tableDefs;
     private final Neo4jRequestWrapper _requestWrapper;
     private final HttpHost _httpHost;
+
+    /**
+     * The HTTP client that this context created itself, if any. A client that was handed to the
+     * context by the caller is <em>not</em> owned by the context and is therefore not closed by it.
+     */
+    private final CloseableHttpClient _ownedHttpClient;
+
     private String _serviceRoot = "/db/data";
 
     public Neo4jDataContext(final String hostname, final int port, final String username, final String password,
             final SimpleTableDef... tableDefs) {
         super(false);
         _httpHost = new HttpHost(hostname, port);
-        final CloseableHttpClient httpClient = HttpClientBuilder.create().build();
+        final CloseableHttpClient httpClient = createHttpClient();
+        _ownedHttpClient = httpClient;
         _requestWrapper = new Neo4jRequestWrapper(httpClient, _httpHost, username, password, _serviceRoot);
         _tableDefs = tableDefs;
     }
@@ -86,7 +97,8 @@ public class Neo4jDataContext extends QueryPostprocessDataContext implements Dat
             final String serviceRoot, final SimpleTableDef... tableDefs) {
         super(false);
         _httpHost = new HttpHost(hostname, port);
-        final CloseableHttpClient httpClient = HttpClientBuilder.create().build();
+        final CloseableHttpClient httpClient = createHttpClient();
+        _ownedHttpClient = httpClient;
         _requestWrapper = new Neo4jRequestWrapper(httpClient, _httpHost, username, password, _serviceRoot);
         _tableDefs = tableDefs;
         _serviceRoot = serviceRoot;
@@ -95,7 +107,8 @@ public class Neo4jDataContext extends QueryPostprocessDataContext implements Dat
     public Neo4jDataContext(final String hostname, final int port, final String username, final String password) {
         super(false);
         _httpHost = new HttpHost(hostname, port);
-        final CloseableHttpClient httpClient = HttpClientBuilder.create().build();
+        final CloseableHttpClient httpClient = createHttpClient();
+        _ownedHttpClient = httpClient;
         _requestWrapper = new Neo4jRequestWrapper(httpClient, _httpHost, username, password, _serviceRoot);
         _tableDefs = detectTableDefs();
     }
@@ -104,7 +117,8 @@ public class Neo4jDataContext extends QueryPostprocessDataContext implements Dat
             final String serviceRoot) {
         super(false);
         _httpHost = new HttpHost(hostname, port);
-        final CloseableHttpClient httpClient = HttpClientBuilder.create().build();
+        final CloseableHttpClient httpClient = createHttpClient();
+        _ownedHttpClient = httpClient;
         _requestWrapper = new Neo4jRequestWrapper(httpClient, _httpHost, username, password, _serviceRoot);
         _tableDefs = detectTableDefs();
         _serviceRoot = serviceRoot;
@@ -113,6 +127,7 @@ public class Neo4jDataContext extends QueryPostprocessDataContext implements Dat
     public Neo4jDataContext(final String hostname, final int port, final CloseableHttpClient httpClient) {
         super(false);
         _httpHost = new HttpHost(hostname, port);
+        _ownedHttpClient = null;
         _requestWrapper = new Neo4jRequestWrapper(httpClient, _httpHost, _serviceRoot);
         _tableDefs = detectTableDefs();
     }
@@ -121,6 +136,7 @@ public class Neo4jDataContext extends QueryPostprocessDataContext implements Dat
             final String serviceRoot) {
         super(false);
         _httpHost = new HttpHost(hostname, port);
+        _ownedHttpClient = null;
         _requestWrapper = new Neo4jRequestWrapper(httpClient, _httpHost, _serviceRoot);
         _tableDefs = detectTableDefs();
         _serviceRoot = serviceRoot;
@@ -130,6 +146,7 @@ public class Neo4jDataContext extends QueryPostprocessDataContext implements Dat
             final SimpleTableDef... tableDefs) {
         super(false);
         _httpHost = new HttpHost(hostname, port);
+        _ownedHttpClient = null;
         _requestWrapper = new Neo4jRequestWrapper(httpClient, _httpHost, _serviceRoot);
         _tableDefs = tableDefs;
     }
@@ -138,9 +155,36 @@ public class Neo4jDataContext extends QueryPostprocessDataContext implements Dat
             final String serviceRoot, final SimpleTableDef... tableDefs) {
         super(false);
         _httpHost = new HttpHost(hostname, port);
+        _ownedHttpClient = null;
         _requestWrapper = new Neo4jRequestWrapper(httpClient, _httpHost, _serviceRoot);
         _tableDefs = tableDefs;
         _serviceRoot = serviceRoot;
+    }
+
+    /**
+     * Creates the HTTP client that this context owns. The client is closed by {@link #close()}.
+     *
+     * <p>
+     * This method is package-private and overridable so that unit tests can substitute a client that
+     * records whether it has been closed.
+     *
+     * @return a new HTTP client
+     */
+    CloseableHttpClient createHttpClient() {
+        return HttpClientBuilder.create().build();
+    }
+
+    /**
+     * Closes the HTTP client that this context created, if any. An HTTP client that was supplied by
+     * the caller is <em>not</em> closed - the caller retains the ownership of it.
+     *
+     * @throws IOException if the HTTP client could not be closed
+     */
+    @Override
+    public void close() throws IOException {
+        if (_ownedHttpClient != null) {
+            _ownedHttpClient.close();
+        }
     }
 
     @Override

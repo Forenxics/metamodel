@@ -18,13 +18,17 @@
  */
 package org.apache.metamodel.cassandra;
 
-import com.datastax.driver.core.ColumnDefinitions;
-import com.datastax.driver.core.DataType;
+import com.datastax.oss.driver.api.core.cql.ColumnDefinition;
+import com.datastax.oss.driver.api.core.cql.ColumnDefinitions;
+import com.datastax.oss.driver.api.core.cql.Row;
+import com.datastax.oss.driver.api.core.type.DataType;
 import org.apache.metamodel.data.DataSetHeader;
 import org.apache.metamodel.data.DefaultRow;
-import org.apache.metamodel.data.Row;
 import org.apache.metamodel.query.SelectItem;
 
+import java.nio.ByteBuffer;
+import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,7 +39,7 @@ import java.util.Set;
 public class CassandraUtils {
 
     /**
-     * Converts a Cassandra Row data object {@link com.datastax.driver.core.Row}
+     * Converts a Cassandra Row data object {@link com.datastax.oss.driver.api.core.cql.Row}
      * into MetaModel {@link org.apache.metamodel.data.Row}.
      *
      * @param dbObject
@@ -45,7 +49,7 @@ public class CassandraUtils {
      * @return the MetaModel {@link org.apache.metamodel.data.Row} result
      *         object.
      */
-    public static Row toRow(com.datastax.driver.core.Row dbObject, DataSetHeader header) {
+    public static org.apache.metamodel.data.Row toRow(Row dbObject, DataSetHeader header) {
         if (dbObject == null) {
             return null;
         }
@@ -61,47 +65,95 @@ public class CassandraUtils {
         return new DefaultRow(header, values);
     }
 
-    private static Object getColumnValue(String columnName, com.datastax.driver.core.Row row) {
-        ColumnDefinitions columns = row.getColumnDefinitions();
-        DataType columnType = columns.getType(columnName);
-        switch (columnType.getName()) {
-        case BIGINT:
-            return row.getVarint(columnName);
-        case COUNTER:
+    /**
+     * Returns the base CQL type name of a data type, for instance <code>text</code>
+     * for a <code>list&lt;text&gt;</code> column.
+     * <p>
+     * The driver 4.x no longer exposes a <code>DataType.Name</code> enumeration, so
+     * the CQL representation of the type is used instead.
+     * </p>
+     *
+     * @param dataType
+     *            the type to inspect
+     * @return the base CQL type name, in lower case
+     */
+    static String getBaseTypeName(DataType dataType) {
+        final String cql = dataType.asCql(false, false);
+        final int index = cql.indexOf('<');
+        return (index >= 0 ? cql.substring(0, index) : cql).trim();
+    }
+
+    private static Object getColumnValue(String columnName, Row row) {
+        final ColumnDefinitions columns = row.getColumnDefinitions();
+        final ColumnDefinition columnDefinition = columns.get(columnName);
+        if (columnDefinition == null) {
+            throw new IllegalArgumentException("Column '" + columnName + "' was not found in the result set");
+        }
+        final DataType columnType = columnDefinition.getType();
+        switch (getBaseTypeName(columnType)) {
+        case "bigint":
             return row.getLong(columnName);
-        case BLOB:
-            return row.getBytes(columnName);
-        case BOOLEAN:
+        case "counter":
+            return row.getLong(columnName);
+        case "blob":
+            return toByteArray(row.getByteBuffer(columnName));
+        case "boolean":
             return row.getBool(columnName);
-        case DECIMAL:
-            return row.getDecimal(columnName);
-        case DOUBLE:
+        case "decimal":
+            return row.getBigDecimal(columnName);
+        case "double":
             return row.getDouble(columnName);
-        case FLOAT:
+        case "float":
             return row.getFloat(columnName);
-        case INT:
+        case "int":
             return row.getInt(columnName);
-        case TEXT:
+        case "text":
             return row.getString(columnName);
-        case TIMESTAMP:
-            return row.getTimestamp(columnName);
-        case UUID:
-            return row.getUUID(columnName);
-        case VARCHAR:
+        case "timestamp":
+            return toDate(row.getInstant(columnName));
+        case "uuid":
+            return row.getUuid(columnName);
+        case "timeuuid":
+            return row.getUuid(columnName);
+        case "varchar":
             return row.getString(columnName);
-        case VARINT:
-            return row.getVarint(columnName);
-        case LIST:
+        case "varint":
+            return row.getBigInteger(columnName);
+        case "list":
             return row.getList(columnName, List.class);
-        case MAP:
+        case "map":
             return row.getMap(columnName, Map.class, String.class);
-        case SET:
+        case "set":
             return row.getSet(columnName, Set.class);
-        case INET:
-            return row.getInet(columnName);
+        case "inet":
+            return row.getInetAddress(columnName);
         default:
             return row.getString(columnName);
         }
+    }
+
+    /**
+     * Converts a {@link ByteBuffer} into a byte array, without consuming the
+     * position of the buffer that was handed in.
+     */
+    private static byte[] toByteArray(ByteBuffer buffer) {
+        if (buffer == null) {
+            return null;
+        }
+        final byte[] bytes = new byte[buffer.remaining()];
+        buffer.duplicate().get(bytes);
+        return bytes;
+    }
+
+    /**
+     * Converts an {@link Instant} into a {@link Date}, which is the java type that
+     * MetaModel uses for timestamp columns.
+     */
+    private static Date toDate(Instant instant) {
+        if (instant == null) {
+            return null;
+        }
+        return Date.from(instant);
     }
 
 }

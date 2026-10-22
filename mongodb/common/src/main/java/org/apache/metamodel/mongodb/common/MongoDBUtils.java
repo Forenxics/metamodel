@@ -18,45 +18,38 @@
  */
 package org.apache.metamodel.mongodb.common;
 
-import java.util.List;
 import java.util.Map;
 
 import org.apache.metamodel.data.DataSetHeader;
 import org.apache.metamodel.data.DefaultRow;
 import org.apache.metamodel.data.Row;
 import org.apache.metamodel.query.SelectItem;
-import org.apache.metamodel.schema.Column;
 import org.apache.metamodel.util.CollectionUtils;
-
-import com.mongodb.DBObject;
 
 /**
  * A utility class for MongoDB module.
+ * <p>
+ * This class is intentionally <b>driver agnostic</b>: it must not reference any type
+ * of the MongoDB Java driver. The class is shared between the MongoDB 2.x module
+ * (which uses the 2.x driver) and the MongoDB 3.x/4.x module (which uses the 4.x
+ * driver), and a reference to a driver type that only exists in one of them would
+ * cause a {@link NoClassDefFoundError} at runtime in the other.
+ * <p>
+ * Both the 2.x driver ({@code com.mongodb.BasicDBObject}) and the 4.x driver
+ * ({@code org.bson.Document}) represent a MongoDB document as a {@link Map}, so a
+ * {@link Map} is the natural currency between the driver specific modules and this
+ * class.
  */
 public class MongoDBUtils {
 
     /**
-     * Converts a MongoDB data object {@link DBObject} into MetaModel
-     * {@link Row}.
-     * 
-     * @param dbObject
-     *            a MongoDB object storing data.
-     * @param header
-     *            a header describing the columns of the data stored.
-     * @return the MetaModel {@link Row} result object.
-     */
-    public static Row toRow(DBObject dbObject, DataSetHeader header) {
-        if (dbObject == null) {
-            return null;
-        }
-
-        final Map<?,?> map = dbObject.toMap();
-        return toRow(map, header);
-    }
-    
-    /**
      * Converts a map into MetaModel. This map stores data of a MongoDB document.
-     * 
+     * <p>
+     * Values are exposed as they are delivered by the driver. Driver specific
+     * document objects (such as {@code com.mongodb.BasicDBObject} of the 2.x driver)
+     * are converted by the driver specific module before this method is called, so
+     * that this method stays independent of the driver version in use.
+     *
      * @param map
      *            a map object storing data of a MongoDB document.
      * @param header
@@ -73,21 +66,9 @@ public class MongoDBUtils {
         for (int i = 0; i < values.length; i++) {
             final SelectItem selectItem = header.getSelectItem(i);
             final String key = selectItem.getColumn().getName();
-            final Object value = CollectionUtils.find(map, key);
-            values[i] = toValue(selectItem.getColumn(), value);
+            values[i] = CollectionUtils.find(map, key);
         }
         return new DefaultRow(header, values);
-    }
-
-    private static Object toValue(Column column, Object value) {
-        if (value instanceof List) {
-            return value;
-        }
-        if (value instanceof DBObject) {
-            DBObject basicDBObject = (DBObject) value;
-            return basicDBObject.toMap();
-        }
-        return value;
     }
 
 }

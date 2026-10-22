@@ -20,7 +20,9 @@ package org.apache.metamodel.mongodb.mongo2;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedMap;
@@ -247,9 +249,42 @@ public class MongoDbDataContext extends QueryPostprocessDataContext implements U
 
         DataSetHeader header = new SimpleDataSetHeader(selectItems);
 
-        Row row = MongoDBUtils.toRow(resultDBObject, header);
+        Row row = MongoDBUtils.toRow(toPlainMap(resultDBObject), header);
 
         return row;
+    }
+
+    /**
+     * Converts a MongoDB {@link DBObject} into a plain {@link Map}, so that no driver
+     * specific type is exposed through the MetaModel {@link Row} API.
+     * <p>
+     * Nested documents are converted into plain maps as well, while the elements of
+     * nested lists are left untouched - which is the behaviour that the MongoDB 2.x
+     * module has always had.
+     *
+     * @param dbObject
+     *            the MongoDB object to convert.
+     * @return a plain map holding the data of the MongoDB object, or null if the given
+     *         object was null.
+     */
+    static Map<String, Object> toPlainMap(DBObject dbObject) {
+        if (dbObject == null) {
+            return null;
+        }
+        final Map<String, Object> map = new LinkedHashMap<String, Object>();
+        for (String key : dbObject.keySet()) {
+            final Object value = dbObject.get(key);
+            if (value instanceof List) {
+                // note: a list of the 2.x driver is a DBObject as well - it must be
+                // kept as a list, since that is how it is addressed (eg. "foo[0].bar")
+                map.put(key, value);
+            } else if (value instanceof DBObject) {
+                map.put(key, ((DBObject) value).toMap());
+            } else {
+                map.put(key, value);
+            }
+        }
+        return map;
     }
 
     @Override
