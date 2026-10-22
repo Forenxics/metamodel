@@ -24,6 +24,9 @@ import java.sql.DriverManager;
 import junit.framework.TestCase;
 
 import org.apache.metamodel.jdbc.dialects.DefaultQueryRewriter;
+import org.apache.metamodel.query.FilterItem;
+import org.apache.metamodel.query.FromItem;
+import org.apache.metamodel.query.OperatorType;
 import org.apache.metamodel.query.Query;
 import org.apache.metamodel.query.SelectItem;
 import org.apache.metamodel.schema.ColumnType;
@@ -151,5 +154,51 @@ public class JdbcIdentifierInjectionTest extends TestCase {
         final String quotedAlias = "\"" + payload.replace("\"", "\"\"") + "\"";
         assertTrue(sql, sql.contains(quotedAlias));
         assertFalse(sql, sql.contains(payload));
+    }
+
+    /**
+     * The alias of a FROM item is also the qualifier of the columns that the WHERE clause refers to.
+     * That qualifier must be quoted and escaped in exactly the same way as the alias in the FROM
+     * clause - otherwise an alias that contains the identifier quote character terminates the
+     * identifier in the WHERE clause and the remainder of it is interpreted as SQL.
+     */
+    public void testFromAliasIsQuotedAndEscapedInWhereClause() {
+        final MutableTable table = new MutableTable("t");
+        final MutableColumn column = new MutableColumn("c");
+        column.setTable(table);
+
+        final String payload = "x\" , (SELECT 1) AS \"y\"";
+        final FromItem fromItem = new FromItem(table).setAlias(payload);
+        final Query query = new Query().from(fromItem)
+                .select(new SelectItem(column, fromItem))
+                .where(new FilterItem(new SelectItem(column, fromItem), OperatorType.EQUALS_TO, "v"));
+
+        final String sql = new DefaultQueryRewriter(_dataContext).rewriteQuery(query);
+
+        final String quotedAlias = "\"" + payload.replace("\"", "\"\"") + "\"";
+        assertTrue(sql, sql.contains("WHERE " + quotedAlias + "."));
+        assertFalse(sql, sql.contains("WHERE " + payload));
+    }
+
+    /**
+     * An alias that has to be quoted must be quoted consistently in the FROM clause and in the WHERE
+     * clause. If the WHERE clause left the qualifier unquoted, the statement would not even be valid
+     * SQL - "WHERE c d.c" is three tokens, not a column reference.
+     */
+    public void testQuotedFromAliasIsUsedConsistentlyInWhereClause() {
+        final MutableTable table = new MutableTable("t");
+        final MutableColumn column = new MutableColumn("c");
+        column.setTable(table);
+
+        final FromItem fromItem = new FromItem(table).setAlias("c d");
+        final Query query = new Query().from(fromItem)
+                .select(new SelectItem(column, fromItem))
+                .where(new FilterItem(new SelectItem(column, fromItem), OperatorType.EQUALS_TO, "v"));
+
+        final String sql = new DefaultQueryRewriter(_dataContext).rewriteQuery(query);
+
+        assertTrue(sql, sql.contains("FROM t \"c d\""));
+        assertTrue(sql, sql.contains("WHERE \"c d\".c = 'v'"));
+        assertFalse(sql, sql.contains("WHERE c d.c"));
     }
 }

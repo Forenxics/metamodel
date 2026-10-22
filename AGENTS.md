@@ -120,6 +120,14 @@ changes ripple into every adapter, so treat them as public API.
   Java 8 API signatures and makes that class of bug impossible.
 - **Java 8 source level.** No `List.of`/`Map.of`, no `var`, no `Files.readString`, no
   `Optional.isEmpty`, no text blocks, no `Stream.toList()`.
+- **A cloned query must stay bound to its own `FromItem`s.** `Query#clone()` clones the
+  WHERE / GROUP BY / HAVING / ORDER BY items *with* the cloned query, so their
+  `SelectItem`s point at the cloned `FromItem`s rather than at detached copies. The
+  JDBC module depends on this: it quotes (and escapes) the alias of a `FromItem` *after*
+  cloning the query, and every clause that qualifies a column with that alias has to
+  see the quoted form. A clause cloned without the query renders its qualifier from a
+  detached copy — unquoted and unescaped — which is both invalid SQL and a SQL
+  injection. When you add a new clause type, clone it the same way.
 - **Do not run `mvn install` concurrently** from more than one process — it races on `~/.m2`.
 - **Maven Central cannot serve every legacy coordinate.** Some 2018-era JAX-WS artifacts only
   ever existed on now-dead plain-HTTP repositories; they are pinned in the POMs.

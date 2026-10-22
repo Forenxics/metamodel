@@ -236,4 +236,82 @@ public class QueryTest extends MetaModelTestCase {
         assertEquals("SELECT sch.tab.age, COUNT(*) FROM sch.tab WHERE sch.tab.age > 18 "
                 + "GROUP BY sch.tab.age HAVING COUNT(sch.tab.name) < 100 ORDER BY sch.tab.age ASC", q.toSql(true));
     }
+
+    /**
+     * A cloned query must keep its WHERE clause bound to the {@link FromItem}s of the <em>cloned</em>
+     * query. If it does not, a change that is made to a {@link FromItem} after the query has been
+     * cloned is not reflected in the column path that the WHERE clause renders - and the WHERE clause
+     * would then refer to the alias in a different way than the FROM clause does.
+     *
+     * <p>
+     * The JDBC module relies on this: it quotes the alias of a {@link FromItem} (so that an alias
+     * containing the identifier quote character cannot break out of the statement), and the quoted alias
+     * has to be used consistently in the FROM clause, the SELECT list, the WHERE clause, the GROUP BY
+     * clause and the ORDER BY clause.
+     */
+    public void testCloneKeepsWhereClauseBoundToClonedFromItem() throws Exception {
+        final Table table = _schema.getTableByName(TABLE_CONTRIBUTOR);
+        final Column nameColumn = table.getColumnByName(COLUMN_CONTRIBUTOR_NAME);
+
+        final FromItem fromItem = new FromItem(table).setAlias("c");
+        final Query q = new Query().from(fromItem)
+                .select(new SelectItem(nameColumn, fromItem))
+                .where(new FilterItem(new SelectItem(nameColumn, fromItem), OperatorType.EQUALS_TO, "x"));
+
+        final Query clone = q.clone();
+
+        // this is what the JDBC module does to a FROM item alias
+        clone.getFromClause().getItem(0).setAlias("\"c\"");
+
+        assertEquals("SELECT \"c\".name FROM MetaModelSchema.contributor \"c\" WHERE \"c\".name = 'x'",
+                clone.toString());
+    }
+
+    /**
+     * The same applies to the GROUP BY, HAVING and ORDER BY clauses.
+     */
+    public void testCloneKeepsGroupByAndOrderByBoundToClonedFromItem() throws Exception {
+        final Table table = _schema.getTableByName(TABLE_CONTRIBUTOR);
+        final Column nameColumn = table.getColumnByName(COLUMN_CONTRIBUTOR_NAME);
+
+        final FromItem fromItem = new FromItem(table).setAlias("c");
+        final SelectItem selectItem = new SelectItem(nameColumn, fromItem);
+        final Query q = new Query().from(fromItem)
+                .select(selectItem)
+                .groupBy(new GroupByItem(selectItem))
+                .having(new FilterItem(selectItem, OperatorType.EQUALS_TO, "x"))
+                .orderBy(new OrderByItem(selectItem, OrderByItem.Direction.ASC));
+
+        final Query clone = q.clone();
+        clone.getFromClause().getItem(0).setAlias("\"c\"");
+
+        assertEquals("SELECT \"c\".name FROM MetaModelSchema.contributor \"c\" "
+                + "GROUP BY \"c\".name HAVING \"c\".name = 'x' ORDER BY \"c\".name ASC", clone.toString());
+    }
+
+    /**
+     * The child items of a compound filter item must be cloned as well - otherwise the cloned query
+     * shares the (mutable) child items with the original query.
+     */
+    public void testCloneDoesNotShareCompoundFilterItemsWithOriginal() throws Exception {
+        final Table table = _schema.getTableByName(TABLE_CONTRIBUTOR);
+        final Column nameColumn = table.getColumnByName(COLUMN_CONTRIBUTOR_NAME);
+
+        final FromItem fromItem = new FromItem(table).setAlias("c");
+        final Query q = new Query().from(fromItem)
+                .select(new SelectItem(nameColumn, fromItem))
+                .where(new FilterItem(LogicalOperator.AND,
+                        new FilterItem(new SelectItem(nameColumn, fromItem), OperatorType.EQUALS_TO, "x"),
+                        new FilterItem(new SelectItem(nameColumn, fromItem), OperatorType.EQUALS_TO, "y")));
+
+        final Query clone = q.clone();
+        clone.getFromClause().getItem(0).setAlias("\"c\"");
+
+        assertEquals("SELECT \"c\".name FROM MetaModelSchema.contributor \"c\" "
+                + "WHERE (\"c\".name = 'x' AND \"c\".name = 'y')", clone.toString());
+
+        // the original query must not have been affected by the change to the clone
+        assertEquals("SELECT c.name FROM MetaModelSchema.contributor c WHERE (c.name = 'x' AND c.name = 'y')",
+                q.toString());
+    }
 }

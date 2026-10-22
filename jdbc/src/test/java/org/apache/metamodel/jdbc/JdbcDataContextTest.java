@@ -188,11 +188,11 @@ public class JdbcDataContextTest extends JdbcTestCase {
         String compliedQueryString = compiledQuery.toSql();
 
         assertEquals(
-                "SELECT a._CUSTOMERNUMBER_, a._CUSTOMERNAME_, a._CONTACTLASTNAME_, a._CONTACTFIRSTNAME_, a._PHONE_, "
-                        + "a._ADDRESSLINE1_, a._ADDRESSLINE2_, a._CITY_, "
-                        + "a._STATE_, a._POSTALCODE_, a._COUNTRY_, a._SALESREPEMPLOYEENUMBER_, "
-                        + "a._CREDITLIMIT_ FROM PUBLIC._CUSTOMERS_ a WHERE a._CUSTOMERNUMBER_ = ? "
-                        + "AND a._CUSTOMERNAME_ = ?", compliedQueryString.replace('\"', '_'));
+                "SELECT _a_._CUSTOMERNUMBER_, _a_._CUSTOMERNAME_, _a_._CONTACTLASTNAME_, _a_._CONTACTFIRSTNAME_, _a_._PHONE_, "
+                        + "_a_._ADDRESSLINE1_, _a_._ADDRESSLINE2_, _a_._CITY_, "
+                        + "_a_._STATE_, _a_._POSTALCODE_, _a_._COUNTRY_, _a_._SALESREPEMPLOYEENUMBER_, "
+                        + "_a_._CREDITLIMIT_ FROM PUBLIC._CUSTOMERS_ _a_ WHERE _a_._CUSTOMERNUMBER_ = ? "
+                        + "AND _a_._CUSTOMERNAME_ = ?", compliedQueryString.replace('\"', '_'));
         DataSet result1 = dataContext.executeQuery(compiledQuery, new Object[] { 103, "Atelier graphique" });
         assertTrue(result1.next());
         assertEquals(
@@ -294,7 +294,7 @@ public class JdbcDataContextTest extends JdbcTestCase {
 
         String compliedQueryString = compiledQuery.toSql();
 
-        assertEquals("SELECT COUNT(*) FROM PUBLIC._CUSTOMERS_ a WHERE a._CREDITLIMIT_ >= ?",
+        assertEquals("SELECT COUNT(*) FROM PUBLIC._CUSTOMERS_ _a_ WHERE _a_._CREDITLIMIT_ >= ?",
                 compliedQueryString.replace('\"', '_'));
 
         DataSet result1 = dataContext.executeQuery(compiledQuery, new Object[] { 11000 });
@@ -350,7 +350,7 @@ public class JdbcDataContextTest extends JdbcTestCase {
 
         String compliedQueryString = compiledQuery.toSql();
 
-        assertEquals("SELECT COUNT(*) FROM PUBLIC._CUSTOMERS_ a WHERE a._CREDITLIMIT_ <= ?",
+        assertEquals("SELECT COUNT(*) FROM PUBLIC._CUSTOMERS_ _a_ WHERE _a_._CREDITLIMIT_ <= ?",
                 compliedQueryString.replace('\"', '_'));
 
         DataSet result1 = dataContext.executeQuery(compiledQuery, new Object[] { 11000 });

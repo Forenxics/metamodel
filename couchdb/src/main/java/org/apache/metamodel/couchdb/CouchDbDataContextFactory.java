@@ -51,7 +51,8 @@ public class CouchDbDataContextFactory extends AbstractDataContextFactory {
 
         final String databaseNames = properties.getDatabaseName();
         if (databaseNames != null && !databaseNames.isEmpty()) {
-            return new CouchDbDataContext(new StdCouchDbInstance(httpClient), databaseNames.split(","));
+            return new CouchDbDataContext(
+                    new StdCouchDbInstance(httpClient, new CouchDbObjectMapperFactory()), databaseNames.split(","));
         }
 
         return new CouchDbDataContext(httpClient);

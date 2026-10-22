@@ -73,11 +73,11 @@ public class CouchDbDataContext extends QueryPostprocessDataContext implements U
     }
 
     public CouchDbDataContext(HttpClient httpClient, SimpleTableDef... tableDefs) {
-        this(new StdCouchDbInstance(httpClient), tableDefs);
+        this(new StdCouchDbInstance(httpClient, new CouchDbObjectMapperFactory()), tableDefs);
     }
 
     public CouchDbDataContext(HttpClient httpClient) {
-        this(new StdCouchDbInstance(httpClient));
+        this(new StdCouchDbInstance(httpClient, new CouchDbObjectMapperFactory()));
     }
 
     public CouchDbDataContext(CouchDbInstance couchDbInstance) {

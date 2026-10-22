@@ -50,13 +50,25 @@ import org.slf4j.LoggerFactory;
  * 
  * <ul>
  * <li>clientType (needed if datacontext type is just "elasticsearch" - must be
- * either "transport" or "node")</li>
+ * "transport". The "node" client type is <em>not</em> supported in Elasticsearch
+ * 7.x and is rejected with an explanatory error - see the node client note
+ * below)</li>
  * <li>hostname (if clientType is "transport")</li>
  * <li>port (if clientType is "transport")</li>
  * <li>database (index name)</li>
  * <li>cluster</li>
  * </ul>
- * 
+ *
+ * <p>
+ * <b>Node client note:</b> the Elasticsearch <em>node</em> client type (the data
+ * context types "es-node" and "elasticsearch-node", or the "clientType" property
+ * set to "node") is <em>not</em> supported in Elasticsearch 7.x. The node client
+ * was an in-process client: it only ever existed inside the JVM of a running
+ * Elasticsearch process, and a remote client cannot obtain the node of another
+ * process - so MetaModel cannot create it. Such a configuration is rejected with
+ * an {@link UnsupportedDataContextPropertiesException} that names the transport
+ * client and the REST based data context as the alternatives.
+ *
  * <p>
  * <b>Security note:</b> the Elasticsearch 7.x transport client supports
  * <em>neither authentication nor TLS</em>. It has no supported user name /
@@ -149,12 +161,63 @@ public class ElasticSearchDataContextFactory implements DataContextFactory {
     @Override
     public DataContext create(DataContextProperties properties, ResourceFactoryRegistry resourceFactoryRegistry)
             throws UnsupportedDataContextPropertiesException, ConnectionException {
+        rejectUnsupportedNodeClientType(properties);
         rejectUnsupportedTransportProperties(properties);
+        requireTransportConnectionProperties(properties);
 
         final Client client = createTransportClient(properties);
         final String indexName = getIndex(properties);
         final SimpleTableDef[] tableDefinitions = properties.getTableDefs();
         return new ElasticSearchDataContext(client, indexName, tableDefinitions);
+    }
+
+    /**
+     * Rejects the "node" client type, which cannot be honoured in Elasticsearch 7.x. The node
+     * client was an in-process client - it only ever existed inside the JVM of a running
+     * Elasticsearch process - and a remote client cannot obtain the node of another process, so
+     * there is no way for MetaModel to create it.
+     *
+     * @param properties the data context properties
+     */
+    private void rejectUnsupportedNodeClientType(DataContextProperties properties) {
+        if (!"node".equals(getClientType(properties))) {
+            return;
+        }
+        throw new UnsupportedDataContextPropertiesException("The Elasticsearch \"node\" client type is not supported "
+                + "in Elasticsearch 7.x. The node client was an in-process client: it only ever existed inside the JVM "
+                + "of a running Elasticsearch process, and a remote client cannot obtain the node of another process "
+                + "- so MetaModel cannot create it. (This configuration used to fail with a NullPointerException, "
+                + "because no \"port\" was configured for the node client type - that NullPointerException is a symptom "
+                + "of this unsupported client type, not a separate problem.) Use the transport client instead - data "
+                + "context type \"es-transport\" / \"elasticsearch-transport\", or data context type \"elasticsearch\" "
+                + "with the \"clientType\" property set to \"transport\" together with the \"hostname\" and \"port\" "
+                + "properties - or use the REST based data context (\"es-rest\" / \"elasticsearch-rest\", implemented "
+                + "by ElasticSearchRestDataContextFactory in the elasticsearch-rest module), which also supports the "
+                + "\"username\" and \"password\" properties and \"https\" URLs.");
+    }
+
+    /**
+     * Ensures that the properties that the transport client needs in order to connect are present.
+     * A missing property must be reported by name instead of being auto-unboxed into a
+     * NullPointerException.
+     *
+     * @param properties the data context properties
+     */
+    private void requireTransportConnectionProperties(DataContextProperties properties) {
+        if (properties.getHostname() == null) {
+            throw new UnsupportedDataContextPropertiesException("The Elasticsearch transport client requires the "
+                    + "\"hostname\" property to be set, but it was missing. A transport client connects to the "
+                    + "transport port of an Elasticsearch node, so the hostname and port properties are both required. "
+                    + "Use data context type \"es-transport\" / \"elasticsearch-transport\", or data context type "
+                    + "\"elasticsearch\" with the \"clientType\" property set to \"transport\".");
+        }
+        if (properties.getPort() == null) {
+            throw new UnsupportedDataContextPropertiesException("The Elasticsearch transport client requires the "
+                    + "\"port\" property to be set, but it was missing. A transport client connects to the transport "
+                    + "port of an Elasticsearch node, so the hostname and port properties are both required. Use data "
+                    + "context type \"es-transport\" / \"elasticsearch-transport\", or data context type "
+                    + "\"elasticsearch\" with the \"clientType\" property set to \"transport\".");
+        }
     }
 
     /**
@@ -219,14 +282,17 @@ public class ElasticSearchDataContextFactory implements DataContextFactory {
     }
 
     private Client createTransportClient(DataContextProperties properties) {
+        // guard against a null port being auto-unboxed into a NullPointerException
+        requireTransportConnectionProperties(properties);
+        final String hostname = properties.getHostname();
+        final Integer port = properties.getPort();
+
         final Settings settings = createTransportSettings(properties);
         final TransportClient client = new PreBuiltTransportClient(settings);
         try {
-            client
-                    .addTransportAddress(new TransportAddress(InetAddress.getByName(properties.getHostname()),
-                            properties.getPort()));
+            client.addTransportAddress(new TransportAddress(InetAddress.getByName(hostname), port.intValue()));
         } catch (UnknownHostException e) {
-            logger.warn("no IP address for the host with name \"{}\" could be found.", properties.getHostname());
+            logger.warn("no IP address for the host with name \"{}\" could be found.", hostname);
         }
         return client;
     }

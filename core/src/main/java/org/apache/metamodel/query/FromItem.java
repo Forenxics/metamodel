@@ -168,6 +168,26 @@ public class FromItem extends BaseObject implements QueryItem, Cloneable {
         return _subQuery;
     }
 
+    /**
+     * Sets the sub-query of this {@link FromItem}, replacing a sub-query that was set before.
+     *
+     * <p>
+     * The sub-query is replaced <em>in place</em> - rather than by replacing the whole
+     * {@link FromItem} - so that the {@link SelectItem}s of the query keep referring to this
+     * {@link FromItem}. A {@link SelectItem} renders the alias of its {@link FromItem} as the
+     * qualifier of the column it refers to, so a {@link SelectItem} that refers to a different
+     * {@link FromItem} than the one that is in the FROM clause would render a qualifier that does
+     * not match the FROM clause.
+     *
+     * @param subQuery
+     *            the new sub-query
+     * @return this {@link FromItem}, for method chaining
+     */
+    public FromItem setSubQuery(Query subQuery) {
+        _subQuery = subQuery;
+        return this;
+    }
+
     public JoinType getJoin() {
         return _join;
     }

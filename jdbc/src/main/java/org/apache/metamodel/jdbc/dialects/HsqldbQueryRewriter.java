@@ -106,20 +106,17 @@ public class HsqldbQueryRewriter extends DefaultQueryRewriter {
      */
     @Override
     public boolean needsQuoting(String alias, String identifierQuoteString) {
-        // NOTE: this check is performed against the identifierQuoteString and not
-        // against the alias, which means that the "always escape" behaviour that
-        // the javadoc describes is never actually applied.
+        // The check has to be performed against the ALIAS and not against the identifier quote
+        // string: the intent is to detect an alias whose case HSQLDB would silently change (and
+        // which therefore has to be escaped in order to keep its case). Checking the identifier
+        // quote string instead made this method a no-op for HSQLDB, whose identifier quote string
+        // is an upper case double quote.
         //
-        // It is deliberately NOT changed here: escaping the alias makes the
-        // generated statements invalid, because the column qualifiers that refer
-        // to a FROM item alias are rendered without quoting by the core module
-        // (SelectItem#getSameQueryAlias() and FilterItem#toSql()). A quoted
-        // alias ("c") does not match an unquoted qualifier (c."COLUMN") in
-        // HSQLDB - the statement fails with "Column not found: C.COLUMN".
-        //
-        // Fixing this properly requires the core module to render the
-        // qualifiers with the same quoting rules as the alias.
-        final boolean containsLowerCase = identifierQuoteString.chars().anyMatch(Character::isLowerCase);
+        // Escaping the alias is safe because the column qualifiers that refer to a FROM item alias
+        // are rendered from the very same (escaped) alias - see
+        // org.apache.metamodel.query.Query#clone() and
+        // org.apache.metamodel.jdbc.dialects.DefaultQueryRewriter#beforeRewrite(Query).
+        final boolean containsLowerCase = alias != null && alias.chars().anyMatch(Character::isLowerCase);
 
         return containsLowerCase || super.needsQuoting(alias, identifierQuoteString);
     }

@@ -146,4 +146,113 @@ public class ElasticSearchDataContextFactoryTest {
         assertNull(settings.get("password"));
         assertNull(settings.get("xpack.security.transport.ssl.enabled"));
     }
+
+    /**
+     * Creates the properties of a configuration that asks for the Elasticsearch "node" client.
+     *
+     * @param dataContextType the data context type to configure
+     * @return the data context properties
+     */
+    private DataContextPropertiesImpl createNodeProperties(String dataContextType) {
+        final Map<String, Object> map = new HashMap<>();
+        map.put("type", dataContextType);
+        map.put("clientType", "node");
+        map.put("cluster", CLUSTER_NAME);
+        map.put("database", "my-index");
+        // no "hostname" and no "port" - a node client does not connect to a remote host
+        return new DataContextPropertiesImpl(map);
+    }
+
+    /**
+     * The Elasticsearch "node" client cannot be created in Elasticsearch 7.x - it was an
+     * in-process client, which a remote client cannot obtain. Before the fix this accepted
+     * configuration failed with a raw NullPointerException, because no port was configured for
+     * the node client type and the port was auto-unboxed. It must now fail with an
+     * explanatory error that names the transport client and the REST based data context as the
+     * alternatives.
+     */
+    @Test
+    public void testNodeClientTypeIsRejectedWithAnExplanatoryError() {
+        for (final String dataContextType : new String[] { "elasticsearch", "es-node", "elasticsearch-node" }) {
+            final DataContextPropertiesImpl properties = createNodeProperties(dataContextType);
+            final ElasticSearchDataContextFactory factory = new ElasticSearchDataContextFactory();
+
+            // the factory still claims these data context types, so that the user gets the
+            // explanatory error instead of a generic "no factory found" error
+            assertTrue("Expected the factory to accept the data context type " + dataContextType,
+                    factory.accepts(properties, null));
+
+            try {
+                factory.create(properties, null);
+                fail("Exception expected for the data context type " + dataContextType);
+            } catch (UnsupportedDataContextPropertiesException e) {
+                final String message = e.getMessage();
+                assertTrue(message, message.contains("node"));
+                assertTrue(message, message.contains("es-transport"));
+                assertTrue(message, message.contains("elasticsearch-transport"));
+                assertTrue(message, message.contains("es-rest"));
+                assertTrue(message, message.contains("elasticsearch-rest"));
+                // the NullPointerException that the user would otherwise get is only a symptom
+                // of the unsupported client type, and the message says so
+                assertTrue(message, message.contains("NullPointerException"));
+            } catch (NullPointerException e) {
+                fail("Expected an UnsupportedDataContextPropertiesException, but got a NullPointerException: " + e);
+            }
+        }
+    }
+
+    /**
+     * The transport client needs a port to connect to. Before the fix the missing port was
+     * auto-unboxed into a NullPointerException; the missing property must now be named.
+     */
+    @Test
+    public void testTransportClientTypeWithoutAPortIsRejected() {
+        final Map<String, Object> map = new HashMap<>();
+        map.put("type", "elasticsearch");
+        map.put("clientType", "transport");
+        map.put("cluster", CLUSTER_NAME);
+        map.put("database", "my-index");
+        map.put("hostname", "localhost");
+        // no "port"
+
+        final DataContextPropertiesImpl properties = new DataContextPropertiesImpl(map);
+
+        try {
+            new ElasticSearchDataContextFactory().create(properties, null);
+            fail("Exception expected");
+        } catch (UnsupportedDataContextPropertiesException e) {
+            final String message = e.getMessage();
+            assertTrue(message, message.contains("\"port\""));
+        } catch (NullPointerException e) {
+            fail("Expected an UnsupportedDataContextPropertiesException, but got a NullPointerException: " + e);
+        }
+    }
+
+    /**
+     * The transport client needs a hostname to connect to. Before the fix the missing hostname
+     * was not detected at all - the client silently connected to the loopback address instead -
+     * and the missing property must now be named.
+     */
+    @Test
+    public void testTransportClientTypeWithoutAHostnameIsRejected() {
+        final Map<String, Object> map = new HashMap<>();
+        map.put("type", "elasticsearch");
+        map.put("clientType", "transport");
+        map.put("cluster", CLUSTER_NAME);
+        map.put("database", "my-index");
+        map.put("port", 9300);
+        // no "hostname"
+
+        final DataContextPropertiesImpl properties = new DataContextPropertiesImpl(map);
+
+        try {
+            new ElasticSearchDataContextFactory().create(properties, null);
+            fail("Exception expected");
+        } catch (UnsupportedDataContextPropertiesException e) {
+            final String message = e.getMessage();
+            assertTrue(message, message.contains("\"hostname\""));
+        } catch (NullPointerException e) {
+            fail("Expected an UnsupportedDataContextPropertiesException, but got a NullPointerException: " + e);
+        }
+    }
 }

@@ -409,16 +409,38 @@ public class FilterItem extends BaseObject implements QueryItem, Cloneable, IRow
 
     @Override
     protected FilterItem clone() {
+        return clone(null);
+    }
+
+    /**
+     * Creates a clone of this {@link FilterItem} for use within a cloned {@link Query}.
+     *
+     * <p>
+     * The {@link SelectItem}s of this filter item are cloned <em>with</em> the cloned query, so that they
+     * refer to the {@link FromItem}s of the cloned query instead of to detached copies of them. This matters
+     * because a {@link FromItem} may be modified after the query has been cloned - the JDBC module, for
+     * instance, quotes the alias of a {@link FromItem} so that it cannot break out of the statement. A
+     * detached copy of the {@link FromItem} would not receive that change, and the WHERE clause would then
+     * render the alias in a different - and unescaped - way than the FROM clause does.
+     *
+     * @param clonedQuery a new {@link Query} object that represents the clone-to-be of a query. It is
+     *            expected that {@link FromItem}s have already been cloned in this {@link Query}.
+     * @return a clone of this filter item
+     */
+    protected FilterItem clone(Query clonedQuery) {
         final List<FilterItem> orItems;
         if (_childItems == null) {
             orItems = null;
         } else {
-            orItems = new ArrayList<FilterItem>(_childItems);
+            orItems = new ArrayList<FilterItem>(_childItems.size());
+            for (FilterItem childItem : _childItems) {
+                orItems.add(childItem.clone(clonedQuery));
+            }
         }
 
         final Object operand;
         if (_operand instanceof SelectItem) {
-            operand = ((SelectItem) _operand).clone();
+            operand = ((SelectItem) _operand).clone(clonedQuery);
         } else {
             operand = _operand;
         }
@@ -427,7 +449,7 @@ public class FilterItem extends BaseObject implements QueryItem, Cloneable, IRow
         if (_selectItem == null) {
             selectItem = null;
         } else {
-            selectItem = _selectItem.clone();
+            selectItem = _selectItem.clone(clonedQuery);
         }
 
         return new FilterItem(selectItem, _operator, operand, orItems, _expression, _logicalOperator);

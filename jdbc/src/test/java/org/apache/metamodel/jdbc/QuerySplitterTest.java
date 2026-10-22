@@ -171,7 +171,6 @@ public class QuerySplitterTest extends JdbcTestCase {
 		assertEquals(
 				"SELECT sq.c_num, sq.e_num FROM (SELECT e._EMPLOYEENUMBER_ AS e_num, c._CUSTOMERNUMBER_ AS c_num FROM PUBLIC._EMPLOYEES_ e, PUBLIC._CUSTOMERS_ c) sq",
 				q.toString().replace('\"', '_'));
-
 		QuerySplitter qs = new QuerySplitter(dc, q);
 		assertEquals(2806, qs.getRowCount());
 
@@ -198,6 +197,50 @@ public class QuerySplitterTest extends JdbcTestCase {
 		}
 		data.close();
 		assertEquals(2806, count);
+	}
+
+	/**
+	 * The alias of the FROM item that holds the sub-query has to be used consistently in the FROM
+	 * clause and in the column qualifiers of the SELECT list. If the splitter replaced the FROM
+	 * item while the SelectItems kept referring to the old one, the qualifier would not match the
+	 * FROM clause - and HSQLDB would fail with "Column not found: SQ.C_NUM".
+	 */
+	public void testSplitQueryUsesTheFromItemAliasConsistently() throws Exception {
+		Connection con = getTestDbConnection();
+		DataContext dc = new JdbcDataContext(con);
+		Schema schema = dc.getDefaultSchema();
+		Table employeesTable = schema.getTableByName("EMPLOYEES");
+		Table customersTable = schema.getTableByName("CUSTOMERS");
+		Query sq = new Query().from(employeesTable, "e").from(customersTable,
+				"c");
+		SelectItem empSelectItem = new SelectItem(
+				employeesTable.getColumns().get(0));
+		SelectItem custSelectItem = new SelectItem(
+				customersTable.getColumns().get(0));
+		sq.select(empSelectItem, custSelectItem);
+		custSelectItem.setAlias("c_num");
+		empSelectItem.setAlias("e_num");
+
+		Query q = new Query();
+		FromItem sqItem = new FromItem(sq).setAlias("sq");
+		q.from(sqItem);
+		q.select(new SelectItem(custSelectItem, sqItem), new SelectItem(
+				empSelectItem, sqItem));
+
+		QuerySplitter qs = new QuerySplitter(dc, q);
+		List<Query> splitQueries = qs.setMaxRows(1000).splitQuery();
+		assertTrue(splitQueries.size() > 0);
+
+		for (Query splitQuery : splitQueries) {
+			final String sql = ((JdbcDataContext) dc).getQueryRewriter()
+					.rewriteQuery(splitQuery);
+			// the FROM clause and the qualifiers have to use the very same alias
+			assertTrue(sql, sql.contains("\"sq\""));
+			assertTrue(sql, sql.contains("\"sq\".c_num"));
+			assertTrue(sql, sql.contains("\"sq\".e_num"));
+			assertFalse(sql, sql.contains("sq.c_num"));
+			assertFalse(sql, sql.contains("sq.e_num"));
+		}
 	}
 
 	/**

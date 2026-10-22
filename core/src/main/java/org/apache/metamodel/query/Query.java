@@ -612,16 +612,16 @@ public final class Query extends BaseObject implements Cloneable, Serializable {
             q.select(item.clone(q));
         }
         for (FilterItem item : _whereClause.getItems()) {
-            q.where(item.clone());
+            q.where(item.clone(q));
         }
         for (GroupByItem item : _groupByClause.getItems()) {
-            q.groupBy(item.clone());
+            q.groupBy(item.clone(q));
         }
         for (FilterItem item : _havingClause.getItems()) {
-            q.having(item.clone());
+            q.having(item.clone(q));
         }
         for (OrderByItem item : _orderByClause.getItems()) {
-            q.orderBy(item.clone());
+            q.orderBy(item.clone(q));
         }
         return q;
     }

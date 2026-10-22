@@ -96,12 +96,12 @@ public class Neo4jDataContext extends QueryPostprocessDataContext implements Dat
     public Neo4jDataContext(final String hostname, final int port, final String username, final String password,
             final String serviceRoot, final SimpleTableDef... tableDefs) {
         super(false);
+        _serviceRoot = serviceRoot;
         _httpHost = new HttpHost(hostname, port);
         final CloseableHttpClient httpClient = createHttpClient();
         _ownedHttpClient = httpClient;
         _requestWrapper = new Neo4jRequestWrapper(httpClient, _httpHost, username, password, _serviceRoot);
         _tableDefs = tableDefs;
-        _serviceRoot = serviceRoot;
     }
 
     public Neo4jDataContext(final String hostname, final int port, final String username, final String password) {
@@ -116,12 +116,12 @@ public class Neo4jDataContext extends QueryPostprocessDataContext implements Dat
     public Neo4jDataContext(final String hostname, final int port, final String username, final String password,
             final String serviceRoot) {
         super(false);
+        _serviceRoot = serviceRoot;
         _httpHost = new HttpHost(hostname, port);
         final CloseableHttpClient httpClient = createHttpClient();
         _ownedHttpClient = httpClient;
         _requestWrapper = new Neo4jRequestWrapper(httpClient, _httpHost, username, password, _serviceRoot);
         _tableDefs = detectTableDefs();
-        _serviceRoot = serviceRoot;
     }
 
     public Neo4jDataContext(final String hostname, final int port, final CloseableHttpClient httpClient) {
@@ -135,11 +135,11 @@ public class Neo4jDataContext extends QueryPostprocessDataContext implements Dat
     public Neo4jDataContext(final String hostname, final int port, final CloseableHttpClient httpClient,
             final String serviceRoot) {
         super(false);
+        _serviceRoot = serviceRoot;
         _httpHost = new HttpHost(hostname, port);
         _ownedHttpClient = null;
         _requestWrapper = new Neo4jRequestWrapper(httpClient, _httpHost, _serviceRoot);
         _tableDefs = detectTableDefs();
-        _serviceRoot = serviceRoot;
     }
 
     public Neo4jDataContext(final String hostname, final int port, final CloseableHttpClient httpClient,
@@ -154,11 +154,11 @@ public class Neo4jDataContext extends QueryPostprocessDataContext implements Dat
     public Neo4jDataContext(final String hostname, final int port, final CloseableHttpClient httpClient,
             final String serviceRoot, final SimpleTableDef... tableDefs) {
         super(false);
+        _serviceRoot = serviceRoot;
         _httpHost = new HttpHost(hostname, port);
         _ownedHttpClient = null;
         _requestWrapper = new Neo4jRequestWrapper(httpClient, _httpHost, _serviceRoot);
         _tableDefs = tableDefs;
-        _serviceRoot = serviceRoot;
     }
 
     /**

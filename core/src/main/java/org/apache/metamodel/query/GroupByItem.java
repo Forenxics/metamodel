@@ -80,7 +80,20 @@ public class GroupByItem extends BaseObject implements QueryItem, Cloneable {
 
     @Override
     protected GroupByItem clone() {
-        GroupByItem g = new GroupByItem(_selectItem.clone());
+        return clone(null);
+    }
+
+    /**
+     * Creates a clone of this {@link GroupByItem} for use within a cloned {@link Query}. The
+     * {@link SelectItem} is cloned with the cloned query, so that it refers to the {@link FromItem}s of
+     * the cloned query instead of to a detached copy of one.
+     *
+     * @param clonedQuery a new {@link Query} object that represents the clone-to-be of a query. It is
+     *            expected that {@link FromItem}s have already been cloned in this {@link Query}.
+     * @return a clone of this group by item
+     */
+    protected GroupByItem clone(Query clonedQuery) {
+        GroupByItem g = new GroupByItem(_selectItem.clone(clonedQuery));
         return g;
     }
 

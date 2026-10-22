@@ -91,6 +91,16 @@ jobs:
         options: >-
           --health-cmd "cqlsh -e 'describe keyspaces'"
           --health-interval 15s --health-timeout 10s --health-retries 20
+      couchdb:
+        # CouchDB 2.3.1 is the oldest release that returns the opaque
+        # "purge_seq" the adapter now tolerates. The adapter was fixed for
+        # that shape, so the test runs against a real server again.
+        image: couchdb:2.3.1
+        ports:
+          - 5984:5984
+        options: >-
+          --health-cmd "curl -fsS http://localhost:5984/ || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 20
     steps:
       - uses: actions/checkout@v4
 
@@ -102,12 +112,8 @@ jobs:
 
       - name: Write the integration test configuration
         run: |
-          # The CouchDB entry is deliberately left out: the unmaintained ektorp
-          # client (1.5.0, 2016) cannot parse the revision id returned by
-          # CouchDB 2.3+, so its insert path fails. See
-          # docs/DEFECT-REGISTER.md.
-          grep -v '^couchdb\.' travis-metamodel-integrationtest-configuration.properties \
-            > "$HOME/metamodel-integrationtest-configuration.properties"
+          cp travis-metamodel-integrationtest-configuration.properties \
+            "$HOME/metamodel-integrationtest-configuration.properties"
           cat "$HOME/metamodel-integrationtest-configuration.properties"
 
       - name: Integration tests

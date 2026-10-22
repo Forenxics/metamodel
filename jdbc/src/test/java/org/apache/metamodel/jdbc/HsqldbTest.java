@@ -37,8 +37,10 @@ import org.apache.metamodel.data.DataSetTableModel;
 import org.apache.metamodel.data.Row;
 import org.apache.metamodel.jdbc.dialects.HsqldbQueryRewriter;
 import org.apache.metamodel.jdbc.dialects.IQueryRewriter;
+import org.apache.metamodel.query.FilterItem;
 import org.apache.metamodel.query.FromItem;
 import org.apache.metamodel.query.JoinType;
+import org.apache.metamodel.query.OperatorType;
 import org.apache.metamodel.query.Query;
 import org.apache.metamodel.query.SelectItem;
 import org.apache.metamodel.schema.Column;
@@ -237,6 +239,37 @@ public class HsqldbTest extends TestCase {
         assertEquals("SELECT pro-ducts.\"PRODUCTCODE\" AS c|o|d|e FROM PUBLIC.\"PRODUCTS\" pro-ducts", q.toString());
 
         DataSet data = dc.executeQuery(q);
+        assertNotNull(data);
+        data.close();
+    }
+
+    /**
+     * HSQLDB folds an unescaped identifier to upper case, so the alias of a FROM item has to be
+     * escaped in order to keep its case. The column qualifiers that refer to that alias have to be
+     * escaped in <em>exactly</em> the same way - if the WHERE clause left the qualifier unescaped,
+     * the statement would fail with "Column not found: A.PRODUCTCODE", because the escaped alias
+     * ("a") and the unescaped qualifier (a) are two different identifiers in HSQLDB.
+     */
+    public void testAliasIsQuotedConsistentlyInFromAndWhereClause() throws Exception {
+        final JdbcDataContext dc = new JdbcDataContext(_connection);
+        final Schema schema = dc.getSchemaByName("PUBLIC");
+        final Table productsTable = schema.getTableByName("PRODUCTS");
+        final Column productCode = productsTable.getColumnByName("PRODUCTCODE");
+
+        final FromItem fromItem = new FromItem(productsTable).setAlias("a");
+        final Query q = new Query().from(fromItem)
+                .select(new SelectItem(productCode, fromItem))
+                .where(new FilterItem(new SelectItem(productCode, fromItem), OperatorType.EQUALS_TO, "P-1"));
+
+        final String sql = dc.getQueryRewriter().rewriteQuery(q);
+
+        assertTrue(sql, sql.contains("\"a\".\"PRODUCTCODE\""));
+        assertTrue(sql, sql.contains("WHERE \"a\".\"PRODUCTCODE\" = 'P-1'"));
+        assertFalse(sql, sql.contains("WHERE a.PRODUCTCODE"));
+
+        // the statement has to be valid: an unresolved qualifier would make HSQLDB throw
+        // "Column not found: A.PRODUCTCODE" here.
+        final DataSet data = dc.executeQuery(q);
         assertNotNull(data);
         data.close();
     }

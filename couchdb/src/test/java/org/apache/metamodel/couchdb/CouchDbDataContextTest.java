@@ -67,7 +67,10 @@ public class CouchDbDataContextTest extends CouchDbTestSupport {
             httpClient = new StdHttpClient.Builder().socketTimeout(timeout).host(getHostname()).build();
 
             // set up a simple database
-            couchDbInstance = new StdCouchDbInstance(httpClient);
+            // NOTE: the instance is created with CouchDbObjectMapperFactory, because a plain
+            // ektorp instance cannot read the database info of CouchDB 2.3 and newer (whose
+            // "purge_seq" is an opaque sequence id rather than a number).
+            couchDbInstance = new StdCouchDbInstance(httpClient, new CouchDbObjectMapperFactory());
 
             final String databaseName = getDatabaseName();
             if (couchDbInstance.getAllDatabases().contains(databaseName)) {

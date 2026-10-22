@@ -206,9 +206,12 @@ public final class QuerySplitter {
         for (Query splitQuery : splitQueries) {
             Query newQuery = _query.clone();
             FromClause fromClause = newQuery.getFromClause();
-            String alias = fromClause.getItem(fromItemIndex).getAlias();
-            fromClause.removeItem(fromItemIndex);
-            newQuery.from(new FromItem(splitQuery).setAlias(alias));
+            // The sub-query of the FROM item is replaced in place. The FROM item itself must NOT be
+            // replaced by a new one, because the SelectItems of the query refer to it - and they
+            // render its alias as the qualifier of the columns they refer to. A FROM item that was
+            // replaced would leave the SelectItems referring to a FROM item that is no longer part
+            // of the query, and the qualifier they render would not match the FROM clause.
+            fromClause.getItem(fromItemIndex).setSubQuery(splitQuery);
             result.add(newQuery);
         }
         return result;
