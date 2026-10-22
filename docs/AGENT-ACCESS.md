@@ -143,21 +143,129 @@ authentication it never had.
 6. **The proxy is where the untrusted-response risk is contained.** It is the
    only component that parses datastore responses, and it pins the versions.
 
-## 4. Where this sits in this repository
+## 5. Repository topology — the trade-off, and what it turns on
 
-The proxy is a **new component**, not a change to the library. Proposed layout:
+The proxy is a **service**; MetaModel is a **library**. Putting them in one
+repository is not a packaging detail — it couples two release cadences, and it
+decides what the project is publicly seen to be.
+
+### 5.1 The three things that can be tied, and are not the same thing
+
+| | Tied to MetaModel? | Why it matters |
+|---|---|---|
+| **The code** | **Always.** The proxy calls `DataContext`, builds `Query` objects, reads `DataSet`s. There is no version of this that is not coupled. | Nothing to decide. |
+| **The release** | **This is the actual decision.** | A library releases conservatively (semantic versioning, a vote, a backport policy for security fixes). A service and an MCP tool surface must iterate fast. |
+| **The identity** | **Also a decision, and it should be made on purpose.** | Is this "an AI gateway" — or "a policy-enforced data-access service, of which the MCP server is one client"? |
+
+Getting the identity wrong is the expensive mistake. If the module is called
+*agent access*, then a BI tool, a partner integration, or a compliance gateway
+cannot use it, and the project has publicly repositioned itself as an AI
+product because of a directory layout.
+
+### 5.2 Pros and cons
+
+**Service in a separate repository**
+
+| Pros | Cons |
+|---|---|
+| Release cadence is independent — the MCP tool surface and the policy rules move at service speed, not at library speed | Version drift: the service pins a **released** MetaModel, so a library fix is only available after a release |
+| The identity can be the general one: "data access as a service"; the MCP server is one client alongside a REST API, a JDBC-facing proxy, a partner SDK | Needs its own PMC, its own CI, its own vulnerability triage — and a project with no volunteers loses it, which is exactly how `metamodel-membrane` died |
+| The dependency direction is explicit and enforceable: the service depends on MetaModel, never the reverse | Two repositories to scan, patch and release |
+| The service's operational profile (credentials, attack surface, container images, on-call) is isolated from the library's | The published artifact set of the library stays clean, but so does the review of the service's code |
+| A released MetaModel is a **stronger** safety gate than "we built it from HEAD on a Tuesday": the service can only use a MetaModel that has been through a release | — |
+
+**Service as a module in this repository**
+
+| Pros | Cons |
+|---|---|
+| No version drift — the service always builds against HEAD, so a library fix is available immediately | The release cadence is coupled: every tool-surface change waits for a MetaModel release, or ships unreleased in the repository — which is what "half done" looks like |
+| Shared CI, shared dependency management (the 23 upgrades), shared RAT and licence policy, shared security review | The service's dependency churn (Spring Boot, the MCP SDK, auth libraries) lands in the library's dependency set and release notes |
+| One place to look: the threat model, the defect register and the policy documentation together | The Java 8 bytecode floor becomes awkward — a modern service wants Java 17/21. It is possible per module (`maven.compiler.release`), but the CI matrix then has to build that module only on the newer JDKs |
+| Atomic changes when MetaModel's API changes | MetaModel would be publishing a server in its distribution, and its security posture would become the project's security posture |
+
+### 5.3 What it actually turns on
+
+Two things, and they can be answered independently of the repository layout:
+
+1. **Governance.** Is there a community and a PMC able to own a service
+   repository? `metamodel-membrane` was dormant from 2019-06-04 to its end
+   because a subproject with no owner does not survive. If the answer is no,
+   then a separate repository will also die, and the honest choice is to keep
+   the service in this repository where at least the CI runs.
+2. **Release the library first.** The service must run against a *fixed*
+   MetaModel. Membrane's failure was precisely that it ran against 5.2.0,
+   before every fix in `docs/DEFECT-REGISTER.md` — including the S1
+   identifier injection. In a separate repository the protection is "pin a
+   released version"; in this repository it is "build against HEAD". The
+   release-gated rule is the stronger of the two, and it is only available
+   once 5.3.4 is released.
+
+### 5.4 The recommendation
+
+**Separate repository for the service, with the policy engine implemented
+exactly once, inside it.** The reasoning:
+
+- The release-cadence mismatch is decisive. A policy proxy and an MCP server
+  change at service speed; a library changes at library speed. Coupling them
+  makes the *fast* thing slow, which is how the fast thing stops being done.
+- The identity should be the general one. The machinery — tenant scoping,
+  table and column allow-lists, column masking, read-only enforcement, row
+  limits, audit — is identical for an agent, a BI tool and a partner
+  integration. The MCP server is then *one client* of the service, which is
+  what makes the service worth having at all.
+- The dependency direction is the safety property: the service depends on
+  MetaModel; MetaModel never depends on the service. That is enforceable in
+  either topology, but it is only *visible* in separate repositories.
+
+**But keep the service in this repository if there is no one to own it
+there.** The governance test is the real one. A separate repository with no
+maintainer is worse than a module with CI: it fails silently, which is the
+failure mode this project is trying to avoid. In that case, add it as a
+**module that is not part of the published library distribution** — it gets
+the shared CI and the shared dependency management, and it does not pollute
+the artifacts or the Java 8 floor of the library.
+
+Either way, the *design* is identical: §3's architecture and §3's six rules do
+not depend on where the code lives.
+
+### 5.5 The sequencing, which is the same in both topologies
+
+1. **Release the fixed MetaModel (5.3.4).** The service must not run against
+   an unfixed library, and "unfixed" includes the S1 identifier injection.
+   This tree is ready for it: green on JDK 21 and 25, 1049 tests.
+2. **Then** the service repository, or the service module.
+3. **Then** phase 1 of §7 — the registry and the policy model, read-only,
+   over one datasource type. The policy model is the part that must not be
+   built twice, so it is written once and reused by every later phase.
+
+## 6. Where this sits — the module layout of the service
+
+The proxy is a **new component**, not a change to the library. Whether it
+lives in this repository or in its own (§5), the internal layout is the same:
 
 | Module | Responsibility |
 |---|---|
-| `proxy/core` | tenant + datasource registry, policy evaluation, the `Query` construction from a structured request, audit log |
-| `proxy/rest` | the REST surface (the membrane's contract), authentication, OpenAPI spec |
-| `proxy/mcp` | the MCP server: tool schemas, argument validation, result shaping — **no policy, no credentials** |
+| `policy` | tenant + datasource registry, policy evaluation, the `Query` construction from a structured request, audit log — **the part that must not be built twice** |
+| `rest` | the REST surface (the membrane's contract), authentication, OpenAPI spec |
+| `mcp` | the MCP server: tool schemas, argument validation, result shaping — **no policy, no credentials** |
 
-`full` already contains the `DataContextFactory` that the proxy's data-context
-layer needs, so the proxy would depend on `full` (or on a narrower subset of
-the adapters — a proxy that only needs JDBC should not pull in `sugarcrm`).
+Two notes on the build:
 
-## 5. Sizing — what is actually required
+- The `policy` module needs MetaModel's types (`Query`, `Column`, `Table`,
+  `DataContext`), so it is Java and it depends on `core`. The `mcp` module
+  does **not** need them: it talks to the `rest` module over HTTP. That is
+  what keeps the tool surface free to change without touching the policy.
+- The Java MCP SDK is first-class (`io.modelcontextprotocol.sdk:mcp`, with
+  `mcp-core`, `mcp-json-jackson2`/`3` and the `mcp-bom`; the Spring MVC and
+  WebFlux transports live in Spring AI 2.0+ under `org.springframework.ai`).
+  There is no need to write the service in another language to get a good
+  MCP implementation.
+
+The data-context layer needs `DataContextFactory`, which lives in `full`.
+A proxy that only needs JDBC should not pull in `sugarcrm` — depend on
+`core` plus the adapters it actually serves.
+
+## 7. Sizing — what is actually required
 
 | Phase | Content | Note |
 |---|---|---|
