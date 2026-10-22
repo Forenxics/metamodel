@@ -1,0 +1,9 @@
+name: smoke
+on:
+  push:
+    branches: [ master ]
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "the runner works"
