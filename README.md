@@ -1,3 +1,40 @@
+> **This is an unofficial fork.**
+>
+> Apache MetaModel was retired by the Apache Software Foundation in **June 2021**
+> and moved to [the Attic](https://attic.apache.org/projects/metamodel.html) in
+> July 2021. The ASF does not release retired projects, so this repository
+> carries the fixes and the modernisation on top of the last upstream commit -
+> they will never be released by the ASF.
+>
+> This fork is **not** an ASF project and is not endorsed by the ASF. It is
+> maintained independently, and it exists so that the security fixes below are
+> actually usable.
+>
+> What was found and changed:
+>
+> - [`docs/DEFECT-REGISTER.md`](docs/DEFECT-REGISTER.md) - 64 defects, with
+>   the evidence for each, and the two findings that were **refuted** on
+>   re-verification.
+> - [`docs/AUDIT-BRIEF.md`](docs/AUDIT-BRIEF.md) - the rules the work was
+>   done under.
+> - [`SECURITY.md`](SECURITY.md) - the threat model.
+> - [`AGENTS.md`](AGENTS.md) - notes for agents working in this repository.
+>
+> The most serious fix is an **S1 SQL injection** in the JDBC layer: a FROM
+> item alias was rendered unquoted and unescaped in the WHERE, GROUP BY, HAVING
+> and ORDER BY clauses, while the FROM clause rendered it escaped. An alias
+> containing a quote character could therefore terminate the identifier and the
+> remainder of it became SQL. It is fixed at the root, in
+> `org.apache.metamodel.query.Query#clone()`.
+>
+> The build was restored and modernised as well: it did not build at all when
+> the audit started, and it is now green on **Temurin 21 and 25** with 1049
+> tests, against live MongoDB, Cassandra and CouchDB.
+>
+> The ASF asks forks of Attic projects to let them know so that they can link
+> to them - see the note on the
+> [MetaModel page in the Attic](https://attic.apache.org/projects/metamodel.html).
+
 ## Apache MetaModel
 
 MetaModel is a data access framework, providing a common interface for exploration and querying of different types of datastores.
