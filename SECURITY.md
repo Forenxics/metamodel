@@ -70,3 +70,13 @@ The `couchdb`, `mongodb`, `elasticsearch`, `hbase`, `cassandra`, `dynamodb`,
 remote services. Use TLS, and prefer client libraries that verify certificates
 and hostnames. Endpoint URLs supplied by configuration are fetched by the
 library — do not derive them from untrusted input.
+
+### 6. AI agents
+
+MetaModel is a library and cannot decide which tables an AI agent may read,
+whether it may write, or what a row limit should be. If an agent is to reach a
+datastore through MetaModel, put a **policy proxy** between them and expose
+the proxy through an **MCP server** — the proxy holds the credentials and
+enforces the policy; the MCP server only translates tools. See
+`docs/AGENT-ACCESS.md`, which also records what `apache/metamodel-membrane`
+contributes and why its 2019 implementation must not be deployed as it stands.
