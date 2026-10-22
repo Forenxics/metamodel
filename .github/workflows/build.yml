@@ -101,6 +101,18 @@ jobs:
         options: >-
           --health-cmd "curl -fsS http://localhost:5984/ || exit 1"
           --health-interval 10s --health-timeout 5s --health-retries 20
+      neo4j:
+        # The adapter speaks the Neo4j 3.x REST API, whose root is /db/data.
+        # Neo4j 4 and later removed it, so the 3.5 image is the one that
+        # matches the adapter. The test seeds the graph it queries itself.
+        image: neo4j:3.5
+        env:
+          NEO4J_AUTH: neo4j/metamodelci
+        ports:
+          - 7474:7474
+        options: >-
+          --health-cmd "wget -q -O /dev/null --header='Authorization: Basic bmVvNGo6bWV0YW1vZGVsY2k=' http://localhost:7474/db/data || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 30
     steps:
       - uses: actions/checkout@v4
 
