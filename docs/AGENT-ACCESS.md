@@ -1,9 +1,53 @@
 # Agent-driven data access — the policy proxy and the MCP surface
 
-**Status:** determination, not an implementation. Nothing in this document is
-built yet. It records *what* has to be true before an AI agent may be allowed
-to reach a datastore through MetaModel, and *why* the shape is a proxy with an
-MCP server in front of it.
+**Status:** this document was written as a **determination, not an
+implementation** — a record of *what* has to be true before an AI agent may be
+allowed to reach a datastore through MetaModel, and *why* the shape is a proxy
+with an MCP server in front of it.
+
+**It has since been built.** The determination is implemented as
+[`Forenxics/metamodel-broker`](https://github.com/Forenxics/metamodel-broker):
+a policy-enforced data-access service with an MCP surface and a REST surface,
+one OpenAPI contract, and a policy layer that enforces the rules set out
+below. This document is kept as the record of the reasoning, and as the
+statement of the requirements the implementation has to meet — where the two
+disagree, the disagreement is written down below rather than quietly resolved.
+
+What was built, and where it lives:
+
+| This document | The implementation |
+|---|---|
+| §3, the architecture and the rules that make it safe | `metamodel-broker`, `docs/DESIGN.md` — "Two transports, one contract" and "The rules" |
+| §6, the module layout | `contract/`, `policy/`, `mcp/`, `rest/` in the broker |
+| §5, the repository topology and the trade-off | The broker is a **separate repository**, as §5.4 recommends |
+| §7 phase 1, the policy model | `policy/` — the allow-list, the masks, the row policies, the planner |
+| §7 phase 2, the REST surface and the contract | `rest/` and `contract/` — the contract is OpenAPI 3.1 and is served at `GET /openapi.json` |
+| §7 phase 3, the MCP tools | `mcp/` — six tools, their schemas derived from the contract |
+| §7 phase 4, write capability | **Not done, and still not proposed.** The read path has to prove itself first. |
+
+Three places where the implementation went beyond this document, and one where
+it differs:
+
+- **It went further on masking.** This document lists column masking as a
+  responsibility of the proxy and does not say what a masked column may be
+  used *for*. The implementation refuses to filter on, sort by, group by or
+  aggregate a masked column, because each of those is a way to learn the value
+  the mask hides. See "Masking, and where it lives" in the broker's
+  `docs/DESIGN.md`.
+- **It went further on rows.** This document asks for row limits. The
+  implementation has a row *policy* as well: a predicate per table, composed
+  into the query with bound values, so the rows that do not match are never
+  read.
+- **It went further with a semantic layer.** The agent can ask for a named
+  number — a metric — instead of a table, and a metric is planned through the
+  same allow-list as any other read, so it is not a way around the policy.
+- **It differs topologically.** The diagram in §3 has the MCP server as a
+  separate process that talks to the proxy over authenticated HTTP. The
+  implementation puts the two in one repository as two *transports* over one
+  implementation of the operations, with the policy below both. Rule 1 still
+  holds — the MCP server holds no policy and cannot choose the tenant — and it
+  holds more strictly, because there is no second process for a caller to
+  reach with a forged tenant.
 
 This document complements `SECURITY.md` (the threat model of the library) and
 `docs/DEFECT-REGISTER.md` (what was found and fixed in the library itself).

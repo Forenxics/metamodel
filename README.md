@@ -20,6 +20,15 @@
 > - [`SECURITY.md`](SECURITY.md) - the threat model.
 > - [`AGENTS.md`](AGENTS.md) - notes for agents working in this repository.
 >
+> **Where this library is used.** The determination in
+> [`docs/AGENT-ACCESS.md`](docs/AGENT-ACCESS.md) - what has to be true before
+> an AI agent may reach a datastore through MetaModel - is implemented as
+> [`Forenxics/metamodel-broker`](https://github.com/Forenxics/metamodel-broker),
+> a policy-enforced data-access service with an MCP surface and a REST surface.
+> It is the reason the security fixes here are worth having: a service that puts
+> a policy layer between an agent and the database must not be running an
+> unfixed library underneath it.
+>
 > The most serious fix is an **S1 SQL injection** in the JDBC layer: a FROM
 > item alias was rendered unquoted and unescaped in the WHERE, GROUP BY, HAVING
 > and ORDER BY clauses, while the FROM clause rendered it escaped. An alias
