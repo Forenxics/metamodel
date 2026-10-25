@@ -19,12 +19,12 @@ under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<parent>
-		<artifactId>MetaModel</artifactId>
-		<groupId>org.apache.metamodel</groupId>
-		<version>5.3.4-SNAPSHOT</version>
+		<artifactId>metamodel</artifactId>
+		<groupId>io.forenxics.metamodel</groupId>
+		<version>5.3.4-forenxics.1</version>
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
-	<artifactId>MetaModel-full</artifactId>
+	<artifactId>metamodel-full</artifactId>
 	<name>MetaModel full package, including DataContext factories</name>
 	<description>The full MetaModel package including all supported datastores</description>
 	<build>
@@ -79,7 +79,7 @@ under the License.
 					<descriptors>
 						<descriptor>src/assembly/metamodel-packaged-assembly-descriptor.xml</descriptor>
 					</descriptors>
-					<finalName>MetaModel-${project.version}</finalName>
+					<finalName>metamodel-${project.version}</finalName>
 				</configuration>
 				<executions>
 					<execution>
@@ -126,113 +126,108 @@ under the License.
 	</build>
 	<dependencies>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-cassandra</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-cassandra</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-core</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-core</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-couchdb</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-couchdb</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-csv</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-csv</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-excel</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-excel</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-neo4j</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-neo4j</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-fixedwidth</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-fixedwidth</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-hadoop</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-hadoop</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-dynamodb</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-dynamodb</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-hbase</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-hbase</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-jdbc</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-jdbc</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-json</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-json</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-            <groupId>org.apache.metamodel</groupId>
-            <artifactId>MetaModel-mongodb-mongo3</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-mongodb-mongo3</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-mongodb-mongo3</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-openoffice</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-openoffice</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-pojo</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-pojo</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-salesforce</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-salesforce</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-sugarcrm</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-sugarcrm</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-xml</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-xml</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-arff</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-arff</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-elasticsearch-rest</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-elasticsearch-rest</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-elasticsearch-native</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-elasticsearch-native</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<!-- Test dependencies -->

@@ -160,6 +160,41 @@ The library's bytecode is Java 8, but two things need more at runtime:
 | everything else | **Java 8** | — |
 | the **test** toolchain | **Java 11** | EasyMock 5.x, and the Elasticsearch test framework |
 
+## The release branch, and the coordinates
+
+`master` carries the upstream lineage and stays legible as a diff against it.
+The **release branch `release/5.3.4-forenxics.1`** carries the Maven
+coordinates of the publication:
+
+| | `master` | `release/5.3.4-forenxics.1` |
+|---|---|---|
+| groupId | `org.apache.metamodel` | `io.forenxics.metamodel` |
+| artifactId | `MetaModel-core` | `metamodel-core` |
+| version | `5.3.4-SNAPSHOT` | `5.3.4-forenxics.1` |
+| Java packages | `org.apache.metamodel.*` | `org.apache.metamodel.*` — **unchanged** |
+
+Two of those are forced and one is deliberate:
+
+- The **groupId** had to change, because the ASF owns `org.apache.metamodel`
+  and the fork is not the ASF's to publish.
+- The **artifactIds** had to be lowercased, because Maven Central rejects an
+  artifactId with uppercase letters.
+- The **Java packages deliberately did not change**, against the usual advice
+  to rename them with the groupId. The serialised compatibility fixtures
+  (`core/src/test/resources/*.ser`) embed the class names of the objects they
+  hold, so a renamed package would make this library unable to read the
+  objects that older MetaModel versions wrote — the rename would destroy the
+  very backward compatibility the fixtures exist to prove. The Java packages
+  also keep the fork a drop-in replacement.
+
+The consequence is that a consumer could end up with **both** the ASF's
+`org.apache.metamodel:MetaModel-core` and the fork's
+`io.forenxics.metamodel:metamodel-core` on one classpath, and the older
+classes might win. The fix for that is a coordinate change, and the fork's
+consumers have a test that catches it — `MetaModelVersionTest` reads the
+version of the MetaModel that actually won the classpath and fails when it is
+older than 5.3.4.
+
 ## PR & commit conventions
 
 - Branch from `master`; never push to it directly.

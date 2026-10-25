@@ -98,7 +98,7 @@ Verified from the source (master, last commit **2019-06-04**, METAMODEL-1212):
 | | |
 |---|---|
 | Version | `0.2-SNAPSHOT` (only `0.1` was ever released) |
-| Built against | `org.apache.metamodel:MetaModel:5.2.0` — **not** the fixed 5.3.4-SNAPSHOT in this tree |
+| Built against | `org.apache.metamodel:MetaModel:5.2.0` — **not** the fixed tree in this repository |
 | Stack | Spring MVC + Undertow, WAR packaging, `swagger.yaml` as the API contract, `swagger-codegen` for the model classes |
 | Domain model | `TenantRegistry` → `TenantContext` → `DataSourceRegistry` → `DataContext`; file-based and in-memory registries with caching wrappers; `FederatedDataContextFactory` federates across sources |
 | Endpoints | `/{tenant}/{dataContext}/…` — datasources, schema, tables, columns, table data, **query**, root information |
@@ -163,7 +163,7 @@ authentication it never had.
 └───────────────────────────┬──────────────────────────────────┘
                             │ credentials never leave this process
                             ▼
-       Apache MetaModel (fixed 5.3.4-SNAPSHOT) ──▶ datastores
+       Apache MetaModel (the fixed fork) ──▶ datastores
 ```
 
 ### The rules that make this safe

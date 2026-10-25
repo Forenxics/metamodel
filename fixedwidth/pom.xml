@@ -19,22 +19,22 @@ under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<parent>
-		<artifactId>MetaModel</artifactId>
-		<groupId>org.apache.metamodel</groupId>
-		<version>5.3.4-SNAPSHOT</version>
+		<artifactId>metamodel</artifactId>
+		<groupId>io.forenxics.metamodel</groupId>
+		<version>5.3.4-forenxics.1</version>
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
-	<artifactId>MetaModel-fixedwidth</artifactId>
+	<artifactId>metamodel-fixedwidth</artifactId>
 	<name>MetaModel module for fixed width value files</name>
 	<dependencies>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-core</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-core</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-csv</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-csv</artifactId>
 			<version>${project.version}</version>
 			<optional>true</optional>
 		</dependency>

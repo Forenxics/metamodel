@@ -44,13 +44,17 @@
 > to them - see the note on the
 > [MetaModel page in the Attic](https://attic.apache.org/projects/metamodel.html).
 >
-> **Publishing.** The version in this repository is still `5.3.4-SNAPSHOT`,
-> because that is what the upstream line was called and the ASF never released
-> it. When the fork is published to Maven Central, it will be published under
-> a group of its own - not `org.apache.metamodel`, which the ASF owns - and
-> under the version **`5.3.4-forenxics.1`**. The qualifier is what makes the
-> version say what it is: a fork of the 5.3.4 line, carrying the security
+> **Publishing.** The Maven coordinates of this repository are its own:
+> `io.forenxics.metamodel`, with the artifactIds lowercased (`metamodel-core`
+> and not `MetaModel-core`) and the version `5.3.4-forenxics.1`. The ASF owns
+> `org.apache.metamodel` and Maven Central requires a lowercase artifactId, so
+> the coordinate had to change; the **Java packages are unchanged**, which
+> keeps the library a drop-in replacement. The qualifier in the version is what
+> makes it say what it is: a fork of the 5.3.4 line, carrying the security
 > fixes, and not a 5.3.4 that the ASF released.
+>
+> The repackaging lives on the `release/5.3.4-forenxics.1` branch, so that
+> `master` keeps the upstream lineage and stays legible as a diff.
 
 ## Apache MetaModel
 

@@ -49,21 +49,29 @@ under the License.
 		<version>21</version>
 	</parent>
 	<scm>
-		<url>https://gitbox.apache.org/repos/asf/metamodel.git</url>
-		<connection>https://gitbox.apache.org/repos/asf/metamodel.git</connection>
-		<developerConnection>scm:git:https://gitbox.apache.org/repos/asf/metamodel.git</developerConnection>
+		<url>https://github.com/Forenxics/metamodel</url>
+		<connection>scm:git:https://github.com/Forenxics/metamodel.git</connection>
+		<developerConnection>scm:git:https://github.com/Forenxics/metamodel.git</developerConnection>
 		<tag>HEAD</tag>
 	</scm>
-	<groupId>org.apache.metamodel</groupId>
-	<artifactId>MetaModel</artifactId>
-	<version>5.3.4-SNAPSHOT</version>
-	<name>MetaModel</name>
-	<description>MetaModel is a library that encapsulates the differences and enhances 
+	<groupId>io.forenxics.metamodel</groupId>
+	<artifactId>metamodel</artifactId>
+	<version>5.3.4-forenxics.1</version>
+	<name>Apache MetaModel (maintained fork)</name>
+	<description>MetaModel is a library that encapsulates the differences and enhances
 		the capabilities of different datastores. Rich querying abilities are
 		offered to datastores that do not otherwise support advanced querying
 		and a unified view of the datastore structure is offered through a
-		single model of the schemas, tables, columns and relationships.</description>
-	<url>http://metamodel.apache.org</url>
+		single model of the schemas, tables, columns and relationships.
+
+		This is a maintained fork of Apache MetaModel, which the ASF retired in
+		June 2021 and therefore never releases again. It carries the last
+		upstream commit plus a full audit of the library: 64 defects fixed,
+		among them an S1 identifier injection in the JDBC layer, and a build
+		that is green on four JDKs against live datastores. The Java packages
+		are unchanged from upstream, so it is a drop-in replacement; the Maven
+		coordinates are not, because the ASF owns org.apache.metamodel.</description>
+	<url>https://github.com/Forenxics/metamodel</url>
 	<inceptionYear>2007</inceptionYear>
 	<packaging>pom</packaging>
 	<modules>
@@ -92,9 +100,15 @@ under the License.
 		<module>neo4j</module>
 	</modules>
 	<issueManagement>
-		<system>Jira</system>
-		<url>https://issues.apache.org/jira/browse/METAMODEL</url>
+		<system>GitHub Issues</system>
+		<url>https://github.com/Forenxics/metamodel/issues</url>
 	</issueManagement>
+	<!--
+		The development and commit lists below are the upstream project's, and
+		they stay: they are where this code was written and where its history
+		is. The fork is maintained on GitHub, and the address to reach it is in
+		the README.
+	-->
 	<mailingLists>
 		<mailingList>
 			<name>Development</name>

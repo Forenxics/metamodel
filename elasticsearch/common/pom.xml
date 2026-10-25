@@ -11,19 +11,19 @@
 	language governing permissions and limitations under the License. -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<parent>
-		<artifactId>MetaModel-elasticsearch</artifactId>
-		<groupId>org.apache.metamodel</groupId>
-		<version>5.3.4-SNAPSHOT</version>
+		<artifactId>metamodel-elasticsearch</artifactId>
+		<groupId>io.forenxics.metamodel</groupId>
+		<version>5.3.4-forenxics.1</version>
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
 
-	<artifactId>MetaModel-elasticsearch-common</artifactId>
+	<artifactId>metamodel-elasticsearch-common</artifactId>
 	<name>MetaModel module for ElasticSearch commons</name>
 
 	<dependencies>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-core</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-core</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 

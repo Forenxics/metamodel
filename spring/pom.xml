@@ -19,23 +19,23 @@ under the License.
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<parent>
-		<artifactId>MetaModel</artifactId>
-		<groupId>org.apache.metamodel</groupId>
-		<version>5.3.4-SNAPSHOT</version>
+		<artifactId>metamodel</artifactId>
+		<groupId>io.forenxics.metamodel</groupId>
+		<version>5.3.4-forenxics.1</version>
 	</parent>
 	<modelVersion>4.0.0</modelVersion>
-	<artifactId>MetaModel-spring</artifactId>
+	<artifactId>metamodel-spring</artifactId>
 	<name>MetaModel module for Spring enabled configuration</name>
 	
 	<dependencies>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-core</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-core</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
-			<groupId>org.apache.metamodel</groupId>
-			<artifactId>MetaModel-full</artifactId>
+			<groupId>io.forenxics.metamodel</groupId>
+			<artifactId>metamodel-full</artifactId>
 			<version>${project.version}</version>
 			<optional>true</optional>
 		</dependency>

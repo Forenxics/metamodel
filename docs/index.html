@@ -1206,15 +1206,20 @@ footer a{color:var(--primary)}
 
   <h3>Where it is published</h3>
   <p>
-    The version in this repository is still <code>5.3.4-SNAPSHOT</code>, because that is what
-    the upstream line was called and the ASF never released it. When the fork is published it
-    will be under <b>a group of its own</b> — not <code>org.apache.metamodel</code>, which the
-    ASF owns — and under the version <code>5.3.4-forenxics.1</code>. The qualifier is what
-    makes the version say what it is: a fork of the 5.3.4 line, carrying the security fixes,
-    and not a 5.3.4 that the ASF released.
+    The Maven coordinates of this repository are its own: the ASF owns
+    <code>org.apache.metamodel</code> and Maven Central requires a lowercase
+    artifactId, so the coordinate had to change. It is
+    <code>io.forenxics.metamodel:metamodel-core:5.3.4-forenxics.1</code>. The
+    <b>Java packages are unchanged</b>, which keeps the library a drop-in
+    replacement and means a consumer only has to change the coordinate. The
+    qualifier in the version is what makes it say what it is: a fork of the
+    5.3.4 line, carrying the security fixes, and not a 5.3.4 that the ASF
+    released.
   </p>
   <p>
-    Until then it is built from source. The
+    The repackaging lives on the <code>release/5.3.4-forenxics.1</code> branch,
+    so that <code>master</code> keeps the upstream lineage and stays legible as a
+    diff against it. Until the fork is published it is built from source. The
     <a href="https://github.com/Forenxics/metamodel-broker">policy-enforced broker</a> that
     depends on it installs the fork from source in its own CI, which is why that repository's
     builds take about eleven minutes.

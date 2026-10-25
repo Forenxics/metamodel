@@ -5,7 +5,7 @@
 
 ## 1. What this project is
 
-**Apache MetaModel 5.3.4-SNAPSHOT** — a Java data-access framework. It provides one unified
+**Apache MetaModel 5.3.4** — a Java data-access framework. It provides one unified
 query API over many datastores: JDBC, CSV, Excel, JSON, XML, ARFF, fixed-width, POJO,
 OpenOffice, MongoDB, CouchDB, Elasticsearch, Cassandra, HBase, DynamoDB, Kafka, Hadoop,
 Neo4j, Salesforce and SugarCRM.
