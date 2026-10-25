@@ -25,9 +25,13 @@ name: build
 
 on:
   push:
-    branches: [ master, main ]
+    # The release branch carries the coordinates of the publication, so it is
+    # built and tested exactly like master is. A branch that is published
+    # without ever having been through CI is not a branch that should be
+    # published.
+    branches: [ master, main, 'release/**' ]
   pull_request:
-    branches: [ master, main ]
+    branches: [ master, main, 'release/**' ]
   schedule:
     # Weekly dependency-CVE sweep. 03:17 every Monday.
     - cron: '17 3 * * 1'
@@ -73,9 +77,10 @@ jobs:
     runs-on: ubuntu-latest
     # The datastore-backed tests are enabled by the presence of
     # ~/metamodel-integrationtest-configuration.properties, not by a profile.
-    # They need real servers, so they run on the default branch and on the
-    # weekly schedule rather than on every pull request.
-    if: github.event_name == 'schedule' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    # They need real servers, so they run on the branches that are published -
+    # the default branch and the release branch - and on the weekly schedule,
+    # rather than on every pull request.
+    if: github.event_name == 'schedule' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')
     services:
       mongodb:
         image: mongo:5.0
