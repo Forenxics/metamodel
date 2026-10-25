@@ -37,8 +37,8 @@
 > `org.apache.metamodel.query.Query#clone()`.
 >
 > The build was restored and modernised as well: it did not build at all when
-> the audit started, and it is now green on **Temurin 21 and 25** with 1049
-> tests, against live MongoDB, Cassandra and CouchDB.
+> the audit started, and it is now green on **Temurin 21 and 25** with 1112
+> tests and no failures, against live MongoDB, Cassandra, CouchDB and Neo4j.
 >
 > The ASF asks forks of Attic projects to let them know so that they can link
 > to them - see the note on the

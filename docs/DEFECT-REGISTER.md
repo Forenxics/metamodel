@@ -21,8 +21,8 @@ re-running the test, the entry says so explicitly.
 | New regression tests / test methods | **29 new test classes, ~161 new test methods** |
 | Modules that did not build at all before the audit | **8** (7 missing module directories + the `sugarcrm` dependency deadlock) |
 | Dependency advisories triaged | **342** across 461 resolved artifacts; **23 upgrades applied** and verified clean against OSV |
-| Build toolchain | 2020-era plugins replaced; **green on Temurin 21.0.12 and 25.0.4.1+1 (LTS)**, 30/30 modules, **1049 tests, 0 failures, 0 errors, 0 skipped** |
-| Test suites | all green, 30 of 30 modules, against **live** MongoDB 5.0, Cassandra 4.1 and CouchDB 2.3.1 |
+| Build toolchain | 2020-era plugins replaced; **green on Temurin 21.0.12 and 25.0.4.1+1 (LTS)**, 30/30 modules, **1112 tests, 0 failures, 0 errors** |
+| Test suites | all green, 30 of 30 modules, against **live** MongoDB 5.0, Cassandra 4.1, CouchDB 2.3.1 and Neo4j 3.5; **48 tests are skipped** - the ones that need a datastore this project does not run (HBase, Kafka, DynamoDB, HDFS) |
 
 ---
 

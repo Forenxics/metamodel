@@ -276,7 +276,7 @@ not depend on where the code lives.
 
 1. **Release the fixed MetaModel (5.3.4).** The service must not run against
    an unfixed library, and "unfixed" includes the S1 identifier injection.
-   This tree is ready for it: green on JDK 21 and 25, 1049 tests.
+   This tree is ready for it: green on JDK 21 and 25, 1112 tests.
 2. **Then** the service repository, or the service module.
 3. **Then** phase 1 of §7 — the registry and the policy model, read-only,
    over one datasource type. The policy model is the part that must not be

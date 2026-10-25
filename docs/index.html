@@ -291,7 +291,7 @@ footer a{color:var(--primary)}
     <span><b>64</b> defects found and fixed</span>
     <span><b>0</b> open at close-out</span>
     <span><b>2</b> findings refuted</span>
-    <span><b>1049</b> tests</span>
+    <span><b>1112</b> tests</span>
     <span><b>30</b> modules</span>
   </div>
 </header>
@@ -1048,9 +1048,10 @@ footer a{color:var(--primary)}
       <rect x="250" y="232" width="490" height="40" rx="9" fill="rgba(47,111,94,.09)" stroke="rgba(47,111,94,.38)"/>
       <text x="495" y="257" text-anchor="middle" font-family="Outfit,sans-serif" font-size="12.5" fill="#235045">OWASP dependency-check, weekly</text>
 
-      <rect x="30" y="300" width="840" height="76" rx="13" fill="rgba(47,111,94,.05)" stroke="rgba(47,111,94,.26)"/>
-      <text x="56" y="330" font-family="Outfit,sans-serif" font-size="14.5" font-weight="600" fill="#14171e">1049 tests · 0 failures · 0 errors · 0 skipped</text>
+      <rect x="30" y="300" width="840" height="94" rx="13" fill="rgba(47,111,94,.05)" stroke="rgba(47,111,94,.26)"/>
+      <text x="56" y="330" font-family="Outfit,sans-serif" font-size="14.5" font-weight="600" fill="#14171e">1112 tests · 0 failures · 0 errors</text>
       <text x="56" y="356" font-family="Outfit,sans-serif" font-size="13" fill="#3a4256">Green on Temurin 21.0.12 and 25.0.4.1+1 (LTS), all 30 modules, against live datastores.</text>
+      <text x="56" y="374" font-family="Outfit,sans-serif" font-size="12.5" fill="#7c7a72">48 tests are skipped — the ones that need a datastore this project does not run.</text>
     </svg>
     <figcaption>The CI matrix the fork runs. It was three of these that did not work, and the defects were in the CI itself — see chapter 07.</figcaption>
   </figure>
@@ -1176,7 +1177,7 @@ footer a{color:var(--primary)}
       <h4>It is</h4>
       <ul class="tight" style="margin-bottom:0">
         <li>The last upstream commit plus the fixes in the register</li>
-        <li>A build that works, on two JDKs, with 1049 tests</li>
+        <li>A build that works, on two JDKs, with 1112 tests</li>
         <li>Green CI on four JDKs, against live datastores</li>
         <li>Java 8 bytecode — the library's floor, unchanged</li>
       </ul>
