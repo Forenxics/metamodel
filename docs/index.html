@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Apache MetaModel — the audit, the fork, and the fixes</title>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing,
+  software distributed under the License is distributed on an
+  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+  KIND, either express or implied.  See the License for the
+  specific language governing permissions and limitations
+  under the License.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --bg:#f7f5f0;
+  --card:#ffffff;
+  --line:#e9e3d6;
+  --line-soft:#f0ebe0;
+  --ink:#14171e;
+  --ink-2:#3a4256;
+  --muted:#7c7a72;
+  --primary:#c97b3f;
+  --primary-soft:rgba(201,123,63,.10);
+  --danger:#b06367;
+  --danger-soft:rgba(176,99,103,.10);
+  --green:#2f6f5e;
+  --green-soft:rgba(47,111,94,.09);
+  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:'Outfit',ui-sans-serif,system-ui,sans-serif;
+  --serif:'DM Serif Display',Georgia,serif;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  font-size:16.5px;line-height:1.62;-webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(900px 480px at 88% -8%, rgba(201,123,63,.07), transparent 62%),
+    radial-gradient(760px 420px at 4% 102%, rgba(176,99,103,.05), transparent 60%);
+}
+.wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:0 28px 120px}
+
+.masthead{padding:76px 0 30px;border-bottom:1px solid var(--line)}
+.eyebrow{
+  display:inline-flex;align-items:center;gap:9px;font-family:var(--mono);
+  font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--primary);
+  background:var(--primary-soft);border:1px solid rgba(201,123,63,.24);
+  padding:5px 12px;border-radius:999px;margin-bottom:26px;
+}
+h1{
+  font-family:var(--serif);font-weight:400;font-size:clamp(36px,5.4vw,58px);
+  line-height:1.05;letter-spacing:-.015em;margin:0 0 18px;
+}
+h1 em{font-style:italic;color:var(--primary)}
+.lede{font-size:19.5px;color:var(--ink-2);max-width:68ch;margin:0 0 30px}
+.masthead-meta{display:flex;flex-wrap:wrap;gap:10px 26px;font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.masthead-meta b{color:var(--ink-2);font-weight:500}
+
+.body{display:grid;grid-template-columns:212px minmax(0,1fr);gap:56px;padding-top:44px;align-items:start}
+main{min-width:0}
+nav.toc{position:sticky;top:26px}
+nav.toc h4{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);margin:0 0 14px;font-weight:500;
+}
+nav.toc a{
+  display:block;color:var(--ink-2);text-decoration:none;font-size:14.5px;
+  padding:6px 0 6px 13px;border-left:2px solid var(--line);transition:.18s;
+}
+nav.toc a:hover{color:var(--primary);border-left-color:var(--primary);padding-left:16px}
+nav.toc a.active{color:var(--primary);border-left-color:var(--primary);font-weight:500}
+nav.toc a.hidden{display:none}
+
+section{margin:0 0 84px;scroll-margin-top:24px}
+h2{
+  font-family:var(--serif);font-weight:400;font-size:clamp(27px,3.2vw,36px);
+  letter-spacing:-.01em;margin:0 0 8px;display:flex;align-items:center;gap:13px;
+}
+h2 svg{flex:none;width:24px;height:24px;color:var(--primary)}
+h3{font-size:19px;font-weight:600;margin:38px 0 12px;letter-spacing:-.005em}
+h4{font-size:15px;font-weight:600;margin:0 0 8px}
+p{margin:0 0 13px;max-width:74ch;color:var(--ink-2)}
+p.tight{margin-bottom:8px}
+.section-kicker{
+  font-family:var(--mono);font-size:11px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--muted);margin:0 0 10px;display:block;
+}
+code{font-family:var(--mono);font-size:.875em;background:var(--primary-soft);color:#8f5a29;padding:2px 6px;border-radius:5px}
+pre{
+  background:#20272b;color:#e4e8e3;border-radius:14px;padding:18px 20px;overflow-x:auto;
+  font-family:var(--mono);font-size:13px;line-height:1.62;margin:0 0 16px;
+}
+pre code{background:none;padding:0;color:inherit;font-size:inherit}
+pre .c{color:#8fa3a0}
+pre .k{color:#e2b07d}
+pre .s{color:#a8c98a}
+
+figure{margin:26px 0 30px}
+figcaption{font-size:13.5px;color:var(--muted);margin-top:12px;padding-left:2px}
+figure svg.diagram{display:block;width:100%;height:auto;max-width:100%}
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px 24px;
+  box-shadow:0 2px 8px rgba(0,0,0,.04);
+}
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin:26px 0 30px}
+.stat{background:var(--card);padding:20px 22px}
+.stat .n{font-family:var(--serif);font-size:34px;line-height:1;color:var(--primary)}
+.stat .n.warn{color:var(--danger)}
+.stat .n.good{color:var(--green)}
+.stat .l{font-size:13px;color:var(--muted);margin-top:7px;line-height:1.4}
+
+table{border-collapse:collapse;width:100%;font-size:14.5px;margin:0 0 8px;background:var(--card)}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+thead th{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);font-weight:500;border-bottom:1px solid var(--line);white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:rgba(201,123,63,.035)}
+td code{white-space:nowrap}
+.table-wrap{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:20px 0 26px;background:var(--card)}
+.scroll{overflow-x:auto}
+
+.pill{
+  display:inline-block;font-family:var(--mono);font-size:11px;padding:3px 9px;border-radius:6px;
+  background:var(--primary-soft);color:#8f5a29;border:1px solid rgba(201,123,63,.22);white-space:nowrap;
+}
+.pill.danger{background:var(--danger-soft);color:#8a4a4d;border-color:rgba(176,99,103,.22)}
+.pill.good{background:var(--green-soft);color:#235045;border-color:rgba(47,111,94,.18)}
+.pill.mute{background:#f1eee7;color:var(--muted);border-color:var(--line)}
+.sev{
+  display:inline-block;font-family:var(--mono);font-size:11px;font-weight:500;padding:2px 7px;border-radius:5px;
+  border:1px solid transparent;
+}
+.sev.s1{background:var(--danger-soft);color:#8a4a4d;border-color:rgba(176,99,103,.25)}
+.sev.s2{background:var(--primary-soft);color:#8f5a29;border-color:rgba(201,123,63,.25)}
+.sev.s3{background:#f1eee7;color:var(--muted);border-color:var(--line)}
+
+.callout{
+  border:1px solid rgba(201,123,63,.25);background:var(--primary-soft);border-radius:14px;
+  padding:18px 22px;margin:22px 0;
+}
+.callout.warn{border-color:rgba(176,99,103,.28);background:var(--danger-soft)}
+.callout.good{border-color:rgba(47,111,94,.25);background:var(--green-soft)}
+.callout .lbl{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--primary);display:block;margin-bottom:7px;
+}
+.callout.warn .lbl{color:#8a4a4d}
+.callout.good .lbl{color:#235045}
+.callout p:last-child{margin-bottom:0}
+
+.timeline{list-style:none;padding:0;margin:22px 0 26px;position:relative}
+.timeline::before{content:"";position:absolute;left:8px;top:8px;bottom:8px;width:2px;background:var(--primary);opacity:.35}
+.timeline li{position:relative;padding:0 0 26px 34px}
+.timeline li:last-child{padding-bottom:0}
+.timeline li::before{content:"";position:absolute;left:2px;top:6px;width:14px;height:14px;border-radius:50%;background:#fff;border:2px solid var(--primary)}
+.timeline li .when{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.05em}
+.timeline li strong{display:block;font-size:16px;margin:2px 0 4px}
+.timeline li p{margin:0;font-size:14.5px}
+
+.controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:20px 0 16px}
+.chip{
+  font-family:var(--mono);font-size:11.5px;line-height:1.4;padding:6px 13px;border-radius:999px;cursor:pointer;
+  border:1px solid var(--line);background:var(--card);color:var(--ink-2);transition:.16s;
+  appearance:none;-webkit-appearance:none;
+}
+.chip:hover{border-color:var(--primary);color:var(--primary)}
+.chip:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+.chip.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.search{
+  flex:1 1 260px;min-width:220px;display:flex;align-items:center;gap:9px;
+  border:1px solid var(--line);background:var(--card);border-radius:11px;padding:9px 14px;
+}
+.search svg{width:16px;height:16px;color:var(--muted);flex:none}
+.search input{border:none;outline:none;background:none;font-family:var(--sans);font-size:14.5px;color:var(--ink);width:100%}
+.search input::placeholder{color:#b6b2a6}
+.hint{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+
+.gloss{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin:22px 0 8px}
+.gloss .g{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:16px 18px}
+.gloss .g dt{font-family:var(--mono);font-size:13px;color:var(--primary);margin-bottom:5px}
+.gloss .g dd{margin:0;font-size:14px;color:var(--ink-2);line-height:1.5}
+
+ul.tight{margin:0 0 14px;padding-left:20px;color:var(--ink-2)}
+ul.tight li{margin-bottom:6px}
+ol.steps{margin:0 0 16px;padding-left:22px;color:var(--ink-2)}
+ol.steps li{margin-bottom:7px}
+hr.sep{border:none;border-top:1px solid var(--line);margin:46px 0}
+.topbar{
+  position:sticky;top:0;z-index:20;background:rgba(247,245,240,.93);
+  backdrop-filter:blur(9px);border-bottom:1px solid var(--line);
+}
+.topbar .inner{max-width:1080px;margin:0 auto;padding:11px 28px;display:flex;align-items:center;gap:14px}
+.topbar .brand{font-family:var(--mono);font-size:12.5px;color:var(--ink);font-weight:500;white-space:nowrap}
+.topbar .brand span{color:var(--muted);font-weight:400}
+.topbar .search{margin-left:auto;flex:0 1 330px}
+.topbar .print{
+  border:1px solid var(--line);background:var(--card);border-radius:9px;padding:7px 13px;cursor:pointer;
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-2);transition:.16s;white-space:nowrap;
+}
+.topbar .print:hover{border-color:var(--primary);color:var(--primary)}
+footer{border-top:1px solid var(--line);padding-top:26px;font-size:13.5px;color:var(--muted)}
+footer a{color:var(--primary)}
+
+/* the register table */
+#regTable{table-layout:fixed}
+#regTable col.c-id{width:92px}
+#regTable col.c-sev{width:62px}
+#regTable col.c-cat{width:112px}
+#regTable col.c-where{width:190px}
+#regTable td{font-size:13.5px;line-height:1.5}
+#regTable td .where{font-family:var(--mono);font-size:11.5px;color:var(--muted);word-break:break-word}
+#regTable summary{cursor:pointer;color:var(--ink-2);list-style:none}
+#regTable summary::-webkit-details-marker{display:none}
+#regTable summary:before{content:"▸ ";color:var(--primary);font-family:var(--mono)}
+#regTable details[open] summary:before{content:"▾ "}
+#regTable details p{margin:10px 0 0;font-size:13px;color:var(--muted);max-width:none}
+#regTable td .proved{font-family:var(--mono);font-size:10.5px;color:var(--green);white-space:nowrap}
+
+@media (max-width:900px){
+  .body{grid-template-columns:minmax(0,1fr);gap:0}
+  nav.toc{display:none}
+  .wrap{padding:0 20px 80px}
+  .masthead{padding:48px 0 24px}
+  .topbar .inner{padding:10px 20px;flex-wrap:wrap}
+  .topbar .search{flex:1 1 100%;margin-left:0;order:3}
+  .topbar .print{display:none}
+}
+@media print{
+  body{background:#fff;font-size:11pt}
+  body::before{display:none}
+  .topbar,nav.toc,.controls,.print{display:none!important}
+  .wrap{max-width:none;padding:0}
+  .body{display:block}
+  section{page-break-inside:avoid;margin-bottom:34pt}
+  figure,table,.card,.callout{page-break-inside:avoid}
+  h2{page-break-after:avoid}
+  a{text-decoration:none;color:inherit}
+  #regTable details{display:block}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="inner">
+    <div class="brand">apache metamodel <span>· the audit and the fork</span></div>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="globalSearch" type="search" placeholder="Search the audit…" aria-label="Search the audit" />
+    </div>
+    <button class="print" onclick="window.print()">Print / PDF</button>
+  </div>
+</div>
+
+<div class="wrap">
+
+<header class="masthead">
+  <span class="eyebrow">
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    An unofficial fork of a retired project
+  </span>
+  <h1>Apache MetaModel was retired<br />in June 2021. <em>These fixes will never be released.</em></h1>
+  <p class="lede">
+    The ASF does not release retired projects, so the last upstream commit is the last thing
+    that will ever be published under <code>org.apache.metamodel</code> — including its
+    security holes. This is the record of a full audit of the library: what was found, what
+    was fixed, what was proved <em>not</em> to be a defect, and what is still not released.
+  </p>
+  <div class="masthead-meta">
+    <span><b>64</b> defects found and fixed</span>
+    <span><b>0</b> open at close-out</span>
+    <span><b>2</b> findings refuted</span>
+    <span><b>1049</b> tests</span>
+    <span><b>30</b> modules</span>
+  </div>
+</header>
+
+<div class="body">
+
+<nav class="toc" id="toc">
+  <h4>Contents</h4>
+  <a href="#headline">The headline finding</a>
+  <a href="#surface">What was audited</a>
+  <a href="#register">The register</a>
+  <a href="#refuted">Two findings that were refuted</a>
+  <a href="#build">The build</a>
+  <a href="#supply">The supply chain</a>
+  <a href="#infrastructure">Three defects in the CI</a>
+  <a href="#fork">What this fork is</a>
+  <a href="#glossary">Glossary</a>
+</nav>
+
+<main>
+
+<!-- ============================ HEADLINE ============================ -->
+<section id="headline">
+  <span class="section-kicker">Chapter 01</span>
+  <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>The headline finding</h2>
+  <p>
+    <b>JDBC-10</b> — an <b>S1 SQL injection</b> in the JDBC layer, and the reason this fork
+    exists. <code>Query.clone()</code> cloned the select-clause items <em>with</em> the cloned
+    query, so their <code>SelectItem</code>s were re-bound to the cloned <code>FromItem</code>s.
+    But it cloned the where-, group-by-, having- and order-by items <em>without</em> it, so
+    their select items kept a <b>detached copy</b> of the from item.
+  </p>
+  <p>
+    The JDBC module quotes and escapes the alias of a from item <em>after</em> cloning — so the
+    FROM clause rendered the escaped alias while the WHERE clause rendered the original,
+    unquoted and unescaped.
+  </p>
+
+  <figure>
+    <svg class="diagram" viewBox="0 0 900 400" role="img" aria-label="The same from-item alias rendered two ways: escaped in the FROM clause, raw and unescaped in the WHERE clause">
+      <defs>
+        <marker id="hA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="#c97b3f"/>
+        </marker>
+      </defs>
+
+      <rect x="30" y="40" width="250" height="70" rx="13" fill="#fff" stroke="rgba(201,123,63,.4)"/>
+      <text x="155" y="66" text-anchor="middle" font-family="Outfit,sans-serif" font-size="14.5" font-weight="600" fill="#14171e">the same alias</text>
+      <text x="155" y="88" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#8f5a29">x" , (SELECT 1) AS "y"</text>
+
+      <path d="M155 110 L155 142 L300 142" stroke="#c97b3f" stroke-width="1.8" fill="none" marker-end="url(#hA)"/>
+      <path d="M155 110 L155 142 L600 142" stroke="#c97b3f" stroke-width="1.8" fill="none" marker-end="url(#hA)"/>
+
+      <rect x="310" y="118" width="280" height="48" rx="11" fill="rgba(47,111,94,.09)" stroke="rgba(47,111,94,.4)"/>
+      <text x="450" y="147" text-anchor="middle" font-family="Outfit,sans-serif" font-size="14" font-weight="600" fill="#14171e">FROM clause — escaped</text>
+
+      <rect x="610" y="118" width="260" height="48" rx="11" fill="rgba(176,99,103,.10)" stroke="rgba(176,99,103,.42)"/>
+      <text x="740" y="147" text-anchor="middle" font-family="Outfit,sans-serif" font-size="14" font-weight="600" fill="#8a4a4d">WHERE clause — raw</text>
+
+      <rect x="30" y="200" width="410" height="120" rx="13" fill="rgba(47,111,94,.05)" stroke="rgba(47,111,94,.26)"/>
+      <text x="56" y="230" font-family="Outfit,sans-serif" font-size="14" font-weight="600" fill="#14171e">What the database received</text>
+      <text x="56" y="258" font-family="JetBrains Mono,monospace" font-size="11.5" fill="#235045">FROM t "x"" , (SELECT 1) AS ""y"""</text>
+      <text x="56" y="282" font-family="JetBrains Mono,monospace" font-size="11.5" fill="#235045">WHERE x" , (SELECT 1) AS "y".c = 'v'</text>
+      <text x="56" y="306" font-family="Outfit,sans-serif" font-size="12.5" fill="#7c7a72">The quote terminates the identifier, and the rest becomes SQL.</text>
+
+      <rect x="460" y="200" width="410" height="120" rx="13" fill="rgba(176,99,103,.06)" stroke="rgba(176,99,103,.28)"/>
+      <text x="486" y="230" font-family="Outfit,sans-serif" font-size="14" font-weight="600" fill="#14171e">Why it was invisible</text>
+      <text x="486" y="256" font-family="Outfit,sans-serif" font-size="13" fill="#3a4256">The statement was also syntactically invalid for any alias</text>
+      <text x="486" y="276" font-family="Outfit,sans-serif" font-size="13" fill="#3a4256">that needed quoting — so the usual case failed loudly,</text>
+      <text x="486" y="296" font-family="Outfit,sans-serif" font-size="13" fill="#3a4256">and the dangerous case was the one nobody tried.</text>
+    </svg>
+    <figcaption>Two renderings of one alias. The fix was at the root: <code>Query.clone()</code> now clones every clause item <em>with</em> the cloned query, so each is re-bound to the cloned from items.</figcaption>
+  </figure>
+
+  <div class="callout warn">
+    <span class="lbl">S1 — and it was not the only one</span>
+    <p>
+      The same class of defect appeared four times: the from-item alias (JDBC-10), the
+      primary-key column list and the schema name (JDBC-02), the schema name in every dialect
+      except Postgres (FM-04), and a second injection path that only surfaced by testing the
+      first fix (FM-05). <b>62 of the 64 defects were fixed; 0 remain open.</b>
+    </p>
+  </div>
+</section>
+
+<!-- ============================ SURFACE ============================ -->
+<section id="surface">
+  <span class="section-kicker">Chapter 02</span>
+  <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>What was audited</h2>
+  <p>
+    Thirty modules, and a defect class list rather than a hunch. The audit was scoped by
+    <a href="docs/AUDIT-BRIEF.md"><code>docs/AUDIT-BRIEF.md</code></a>, which named the
+    classes to hunt rather than the files to read — because a brief that lists files produces
+    a checklist, and a checklist is what an audit must not be.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <h4>Classes hunted</h4>
+      <ul class="tight" style="margin-bottom:0">
+        <li>XML External Entity processing (CWE-611)</li>
+        <li>SQL injection through identifier quoting (CWE-89)</li>
+        <li>Unsafe deserialization (CWE-502)</li>
+        <li>Credential handling in logs and errors</li>
+        <li>Correctness of the query and model layer</li>
+        <li>The build itself, the toolchain, and the dependencies</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>The surface</h4>
+      <ul class="tight" style="margin-bottom:0">
+        <li>30 modules — JDBC, XML, Excel, CSV, Elasticsearch, MongoDB, Cassandra, CouchDB, Neo4j, DynamoDB, Salesforce, SugarCRM, POJO, OpenOffice, Spring</li>
+        <li>523 main source files, 198 test files</li>
+        <li>Java 8 bytecode — the library's floor, unchanged by the fork</li>
+        <li>Live datastores for the adapters, not mocks</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="n">64</div><div class="l">defects found and fixed</div></div>
+    <div class="stat"><div class="n good">0</div><div class="l">open at close-out</div></div>
+    <div class="stat"><div class="n">2</div><div class="l">findings refuted</div></div>
+    <div class="stat"><div class="n">29</div><div class="l">new test classes</div></div>
+    <div class="stat"><div class="n">161</div><div class="l">new test methods</div></div>
+    <div class="stat"><div class="n">8</div><div class="l">modules that did not build</div></div>
+  </div>
+</section>
+
+<!-- ============================ REGISTER ============================ -->
+<section id="register">
+  <span class="section-kicker">Chapter 03</span>
+  <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="m9 14 2 2 4-4"/></svg>The register</h2>
+  <p>
+    Every finding in <a href="docs/DEFECT-REGISTER.md"><code>docs/DEFECT-REGISTER.md</code></a>,
+    in one table. Filter by severity or by the class of defect; click a title for the full
+    finding and its resolution. Almost every entry is <b>mutation-proved</b>: the new test was
+    run against the pre-fix code and had to fail there.
+  </p>
+
+  <div class="controls">
+    <span class="chip on" data-reg-filter="all">all</span>
+    <span class="chip" data-reg-filter="S1">S1</span>
+    <span class="chip" data-reg-filter="S2">S2</span>
+    <span class="chip" data-reg-filter="S3">S3</span>
+    <span class="chip" data-reg-filter="security">security</span>
+    <span class="chip" data-reg-filter="correctness">correctness</span>
+    <span class="chip" data-reg-filter="adapters">adapters</span>
+    <span class="chip" data-reg-filter="core">core</span>
+    <span class="chip" data-reg-filter="jdbc">jdbc</span>
+    <span class="chip" data-reg-filter="supply-chain">supply chain</span>
+    <span class="chip" data-reg-filter="build">build</span>
+    <span class="chip" data-reg-filter="infrastructure">infrastructure</span>
+    <span class="chip" data-reg-filter="refuted">refuted</span>
+    <span class="hint" id="regCount"></span>
+  </div>
+
+  <div class="table-wrap scroll">
+    <table id="regTable">
+      <colgroup><col class="c-id" /><col class="c-sev" /><col class="c-cat" /><col class="c-where" /><col /></colgroup>
+      <thead>
+        <tr><th>ID</th><th>Sev</th><th>Class</th><th>Where</th><th>Finding and resolution</th></tr>
+      </thead>
+      <tbody>
+        <tr data-sev="S1" data-cat="build" data-search="sc-01 cwe-20 build core/.../util/legacydeserializationobjectinputstream.java every legacy metamodel stream failed to deserialize on jdk 9+. fixed — replaced the reflection with the public-api signal the jdk itself guarantees for enum descriptors (getserialversionuid() == 0 &amp;&amp; getfields().length == 0), which is what objectstreamclass.readnonproxy enforces. mutation-proved: with the detection disabled the original error returns exactly.">
+          <td><code>SC-01</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill mute">build</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>Every legacy MetaModel stream failed to deserialize on JDK 9+.</summary><p><b>Where:</b> core/.../util/LegacyDeserializationObjectInputStream.java</p><p>Every legacy MetaModel stream failed to deserialize on JDK 9+. The class detected &quot;this stream described an enum&quot; by reflecting into java.io.ObjectStreamClass's private initialized field and its isEnum() member. Since Java 9 (JEP 403) setAccessible on java.io internals throws InaccessibleObjectException; the exception was swallowed by catch (Exception e), the helper silently returned false, the legacy enum descriptor was bound to the modern OperatorType interface, and the JDK rejected it with InvalidClassException: cannot bind enum descriptor to a non-enum class. The project's own CI only ever ran JDK 8/9/11, so this was never seen.</p><p><b>Resolution:</b> Fixed — replaced the reflection with the public-API signal the JDK itself guarantees for enum descriptors (getSerialVersionUID() == 0 &amp;&amp; getFields().length == 0), which is what ObjectStreamClass.readNonProxy enforces. Mutation-proved: with the detection disabled the original error returns exactly.</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="build" data-search="sc-02 cwe-502 build same class unrestricted java deserialization. fixed — a default class allow-list (metamodel + jdk namespaces), with an overridable isallowedclass(string) hook so the documented &quot;or extended&quot; use case still works.">
+          <td><code>SC-02</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill mute">build</span></td>
+          <td><span class="where">same class</span></td>
+          <td><details><summary>Unrestricted Java deserialization.</summary><p>Unrestricted Java deserialization. The class resolved any class named in the stream, so a hostile stream could instantiate arbitrary types (gadget chains).</p><p><b>Resolution:</b> Fixed — a default class allow-list (MetaModel + JDK namespaces), with an overridable isAllowedClass(String) hook so the documented &quot;or extended&quot; use case still works.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="build" data-search="sc-03  build sugarcrm/pom.xml the module could not be built. the jax-ws ri stack transitively requires org.glassfish.jaxb:txw2:2.4.0-b180608.0325, which was only ever published to plain-http repositories that no longer exist; maven 3.8+ blocks plain-http repositories outright, so dependency resolution failed and took neo4j, full and spring with it. fixed — the unresolvable coordinate is excluded and the matching release that is on central (2.3.1) is supplied explicitly, for both the project and the code-generation plugin.">
+          <td><code>SC-03</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill mute">build</span></td>
+          <td><span class="where">sugarcrm</span></td>
+          <td><details><summary>The module could not be built. The JAX-WS RI stack transitively requires org.glassfish.jaxb:txw2:2.4.0-b180608.0325, which was only ever published to plain-HTTP repositories that no longer exist; Maven 3.8+ blocks plain-HTTP repositories outright, so dependency resolution failed and took neo4j, full and spring with it.</summary><p><b>Where:</b> sugarcrm/pom.xml</p><p><b>Resolution:</b> Fixed — the unresolvable coordinate is excluded and the matching release that is on Central (2.3.1) is supplied explicitly, for both the project and the code-generation plugin.</p></details></td>
+        </tr>
+        <tr data-sev="—" data-cat="build" data-search="sc-04  build tree root seven declared modules were missing from the source tree (pojo, xml, openoffice, salesforce, sugarcrm, spring, neo4j, plus mongodb/mongo3/src), so the root pom could not even be read. fixed — restored from upstream and re-verified: 1002 files, 0 missing, 0 mismatched.">
+          <td><code>SC-04</code></td>
+          <td><span class="sev">—</span></td>
+          <td><span class="pill mute">build</span></td>
+          <td><span class="where">tree root</span></td>
+          <td><details><summary>Seven declared modules were missing from the source tree (pojo, xml, openoffice, salesforce, sugarcrm, spring, neo4j, plus mongodb/mongo3/src), so the root POM could not even be read.</summary><p><b>Resolution:</b> Fixed — restored from upstream and re-verified: 1002 files, 0 missing, 0 mismatched.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="security" data-search="fm-01  security xml/.../xmlsaxdatacontext.java (2 sites) the sax parser used for schema detection and for row materialisation resolved external entities. fixed — hardened factory (xmlsecurityutils), 6 regression tests.">
+          <td><code>FM-01</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill">security</span></td>
+          <td><span class="where">xml</span></td>
+          <td><details><summary>The SAX parser used for schema detection and for row materialisation resolved external entities.</summary><p><b>Where:</b> xml/.../XmlSaxDataContext.java (2 sites)</p><p><b>Resolution:</b> Fixed — hardened factory (XmlSecurityUtils), 6 regression tests.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="security" data-search="fm-02  security xml/.../xmldomdatacontext.java the dom parser resolved external entities. fixed — hardened factory.">
+          <td><code>FM-02</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill">security</span></td>
+          <td><span class="where">xml</span></td>
+          <td><details><summary>The DOM parser resolved external entities.</summary><p><b>Where:</b> xml/.../XmlDomDataContext.java</p><p><b>Resolution:</b> Fixed — hardened factory.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="security" data-search="fm-03  security excel/.../excelutils.java an .xlsx workbook is a zip whose parts are xml documents that the file's author fully controls. fixed — hardened factory, 4 regression tests.">
+          <td><code>FM-03</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill">security</span></td>
+          <td><span class="where">excel</span></td>
+          <td><details><summary>An .xlsx workbook is a ZIP whose parts are XML documents that the file's author fully controls.</summary><p><b>Where:</b> excel/.../ExcelUtils.java</p><p>An .xlsx workbook is a ZIP whose parts are XML documents that the file's author fully controls. ExcelUtils.createXmlReader() parsed them with a default SAX factory, so a crafted workbook could read local files.</p><p><b>Resolution:</b> Fixed — hardened factory, 4 regression tests.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="security" data-search="jdbc-01  security jdbc/.../jdbcupdatecallback.java quoteifnescesary decided whether to quote by looking for a space, a dash or a sql keyword, and never escaped an embedded quote character. fixed — quote anything that is not a plain identifier, and double embedded quote characters. ordinary identifiers render byte-identically to before. proved: reverts → test fails.">
+          <td><code>JDBC-01</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill">security</span></td>
+          <td><span class="where">jdbc</span></td>
+          <td><details><summary>quoteIfNescesary decided whether to quote by looking for a space, a dash or a SQL keyword, and never escaped an embedded quote character.</summary><p><b>Where:</b> jdbc/.../JdbcUpdateCallback.java</p><p>quoteIfNescesary decided whether to quote by looking for a space, a dash or a SQL keyword, and never escaped an embedded quote character. x;DROP//TABLE//y was emitted raw.</p><p><b>Resolution:</b> Fixed — quote anything that is not a plain identifier, and double embedded quote characters. Ordinary identifiers render byte-identically to before. Proved: reverts → test fails.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="security" data-search="jdbc-02  security jdbc/.../jdbccreatetablebuilder.java the primary key column list and the schema name were rendered verbatim: a column named id) ; drop table other -- produced create table public.pk_test (&quot;id) ; drop table other --&quot; varchar, primary key(id) ; drop table other --)) — the statement terminated early and a second statement was appended. fixed. proved.">
+          <td><code>JDBC-02</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill">security</span></td>
+          <td><span class="where">jdbc</span></td>
+          <td><details><summary>The PRIMARY KEY column list and the schema name were rendered verbatim: a column named id) ; DROP TABLE other -- produced CREATE TABLE PUBLIC.pk_test (&quot;id) ; DROP TABLE other --&quot; VARCHAR, PRIMARY KEY(id) ; DROP TABLE other --)) — the statement terminated early and a second statement was appended.</summary><p><b>Where:</b> jdbc/.../JdbcCreateTableBuilder.java</p><p><b>Resolution:</b> Fixed. Proved.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="security" data-search="jdbc-03  security jdbc/.../dialects/defaultqueryrewriter.java needsquoting used alias.indexof(identifierquotestring) == -1 as a guard, so an alias containing the quote character skipped the special-character check entirely and was emitted raw — select t.c as x&quot; , (select 1) as &quot;y&quot; from t is valid sql with an injected sub-select. fixed. proved.">
+          <td><code>JDBC-03</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill">security</span></td>
+          <td><span class="where">jdbc</span></td>
+          <td><details><summary>needsQuoting used alias.indexOf(identifierQuoteString) == -1 as a guard, so an alias containing the quote character skipped the special-character check entirely and was emitted raw — SELECT t.c AS x&quot; , (SELECT 1) AS &quot;y&quot; FROM t is valid SQL with an injected sub-select.</summary><p><b>Where:</b> jdbc/.../dialects/DefaultQueryRewriter.java</p><p><b>Resolution:</b> Fixed. Proved.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="security" data-search="cm-04  security core/.../schema/abstracttable.java, abstractcolumn.java, abstractschema.java getquotedname() built quote + getname() + quote with no escaping, one layer below jdbc-01/02/03. fixed — embedded quote characters are doubled.">
+          <td><code>CM-04</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill">security</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>getQuotedName() built quote + getName() + quote with no escaping, one layer below JDBC-01/02/03.</summary><p><b>Where:</b> core/.../schema/AbstractTable.java, AbstractColumn.java, AbstractSchema.java</p><p><b>Resolution:</b> Fixed — embedded quote characters are doubled.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="security" data-search="fm-04  security jdbc/.../dialects/defaultqueryrewriter.java (all dialects) the schema name broke out of the identifier in every dialect except postgresql. fixed — escapeidentifier (doubles the quote character) and needsidentifierquoting (quote only when protection is actually needed, so ordinary schema names render byte-identically to before) are applied to the table reference and both sides of a join. postgresql keeps its always-quoted form and now doubles embedded quotes. proved: disabling the guard makes the new test fail.">
+          <td><code>FM-04</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill">security</span></td>
+          <td><span class="where">jdbc</span></td>
+          <td><details><summary>The schema name broke out of the identifier in every dialect except PostgreSQL.</summary><p><b>Where:</b> jdbc/.../dialects/DefaultQueryRewriter.java (all dialects)</p><p>The schema name broke out of the identifier in every dialect except PostgreSQL. Core renders the schema name raw (core/query/FromItem.java:227), and only PostgresqlQueryRewriter overrode rewriteFromItem; the other eleven dialects inherited the base, which emitted the schema unquoted and unescaped. A schema named x&quot;y produced FROM x&quot;y.&quot;t&quot; — the attacker's own quote closes the identifier. PostgreSQL quoted the schema but did not double an embedded quote, so &quot;x&quot;y&quot;.&quot;t&quot; still broke out.</p><p><b>Resolution:</b> Fixed — escapeIdentifier (doubles the quote character) and needsIdentifierQuoting (quote only when protection is actually needed, so ordinary schema names render byte-identically to before) are applied to the table reference and both sides of a join. PostgreSQL keeps its always-quoted form and now doubles embedded quotes. Proved: disabling the guard makes the new test fail.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="security" data-search="fm-05  security jdbc/.../dialects/defaultqueryrewriter.java (rewriteselectitem / rewriteorderbyitem / rewritegroupbyitem / rewritefilteritem) a second injection path, found only by testing the fix. fixed — the column-path qualifiers are protected too. proved (the sql server dialect failed the new test after only the from clause had been fixed, which is how the path was found).">
+          <td><code>FM-05</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill">security</span></td>
+          <td><span class="where">jdbc</span></td>
+          <td><details><summary>A second injection path, found only by testing the fix.</summary><p><b>Where:</b> jdbc/.../dialects/DefaultQueryRewriter.java (rewriteSelectItem / rewriteOrderByItem / rewriteGroupByItem / rewriteFilterItem)</p><p>A second injection path, found only by testing the fix. DB2QueryRewriter and SQLServerQueryRewriter are the two dialects with isSchemaIncludedInColumnPaths() == true, so the schema name also lands in the SELECT / WHERE / GROUP BY / ORDER BY column paths via core SelectItem.getToStringColumnPrefix() → schema.getQuotedName(). Fixing only the FROM clause would have left an equivalent breakout in those two dialects.</p><p><b>Resolution:</b> Fixed — the column-path qualifiers are protected too. Proved (the SQL Server dialect failed the new test after only the FROM clause had been fixed, which is how the path was found).</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="security" data-search="nw-01  security sugarcrm/.../sugarcrmdatacontext.java, loggingmessagehandler.java credentials (password / session id) were written to logs. fixed — credentialredactor helper + regression test.">
+          <td><code>NW-01</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill">security</span></td>
+          <td><span class="where">sugarcrm</span></td>
+          <td><details><summary>Credentials (password / session id) were written to logs.</summary><p><b>Where:</b> sugarcrm/.../SugarCrmDataContext.java, LoggingMessageHandler.java</p><p><b>Resolution:</b> Fixed — CredentialRedactor helper + regression test.</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="security" data-search="nw-02  security elasticsearch/rest/.../elasticsearchrestdatacontextfactory.java endpoint/credential handling in the rest client factory. fixed + regression test.">
+          <td><code>NW-02</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">security</span></td>
+          <td><span class="where">elasticsearch</span></td>
+          <td><details><summary>Endpoint/credential handling in the REST client factory.</summary><p><b>Where:</b> elasticsearch/rest/.../ElasticSearchRestDataContextFactory.java</p><p><b>Resolution:</b> Fixed + regression test.</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="cm-01  correctness core/.../schema/abstractcolumn.java hashcode() threw nullpointerexception on a null name; equals() threw on a null name or a null type. fixed">
+          <td><code>CM-01</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>hashCode() threw NullPointerException on a null name; equals() threw on a null name or a null type.</summary><p><b>Where:</b> core/.../schema/AbstractColumn.java</p><p><b>Resolution:</b> Fixed</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="cm-02  correctness core/.../schema/columntypeimpl.java no equals() / hashcode() — columntype.date.equals(deserializedtype) was false and hash-based collections misbehaved. fixed">
+          <td><code>CM-02</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>No equals() / hashCode() — ColumnType.DATE.equals(deserializedType) was false and hash-based collections misbehaved.</summary><p><b>Where:</b> core/.../schema/ColumnTypeImpl.java</p><p><b>Resolution:</b> Fixed</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="cm-03  correctness core/.../schema/columntypeimpl.java a deserialized columntypeimpl was a fresh instance rather than the canonical constant, so reference comparisons against columntype.date failed after a round trip through a stream. fixed — readresolve() resolves back to the canonical constant.">
+          <td><code>CM-03</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>A deserialized ColumnTypeImpl was a fresh instance rather than the canonical constant, so reference comparisons against ColumnType.DATE failed after a round trip through a stream.</summary><p><b>Where:</b> core/.../schema/ColumnTypeImpl.java</p><p><b>Resolution:</b> Fixed — readResolve() resolves back to the canonical constant.</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="cq-01  correctness core/.../query/operatortypeimpl.java equals() was overridden but hashcode() was not — equal operatortype values landed in different buckets of a hashset/hashmap. fixed + regression test.">
+          <td><code>CQ-01</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>equals() was overridden but hashCode() was not — equal OperatorType values landed in different buckets of a HashSet/HashMap.</summary><p><b>Where:</b> core/.../query/OperatorTypeImpl.java</p><p><b>Resolution:</b> Fixed + regression test.</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="jdbc-04  correctness jdbc/.../jdbcupdatecallback.java close(false) skipped closepreparedstatement entirely — the statement was leaked on the failure path. fixed. proved (a counting proxy observed 0 closes before, 1 after).">
+          <td><code>JDBC-04</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">jdbc</span></td>
+          <td><details><summary>close(false) skipped closePreparedStatement entirely — the statement was leaked on the failure path.</summary><p><b>Where:</b> jdbc/.../JdbcUpdateCallback.java</p><p><b>Resolution:</b> Fixed. Proved (a counting proxy observed 0 closes before, 1 after).</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="jdbc-05  correctness jdbc/.../jdbcupdatecallback.java the pooled connection was released only inside the istransactional() branch, so the non-transactional rewriters (hive, hive2, impala) never returned the connection. fixed. proved (dbcp getnumactive() was 1 after a failed update, 0 after the fix).">
+          <td><code>JDBC-05</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">jdbc</span></td>
+          <td><details><summary>The pooled connection was released only inside the isTransactional() branch, so the non-transactional rewriters (Hive, Hive2, Impala) never returned the connection.</summary><p><b>Where:</b> jdbc/.../JdbcUpdateCallback.java</p><p><b>Resolution:</b> Fixed. Proved (DBCP getNumActive() was 1 after a failed update, 0 after the fix).</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="jdbc-06  correctness jdbc/.../dialects/hsqldbqueryrewriter.java the rewriter removed the last occurrence of the text timestamp from a rendered filter. fixed — only a type token is stripped. proved.">
+          <td><code>JDBC-06</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">jdbc</span></td>
+          <td><details><summary>The rewriter removed the last occurrence of the text TIMESTAMP from a rendered filter.</summary><p><b>Where:</b> jdbc/.../dialects/HsqldbQueryRewriter.java</p><p>The rewriter removed the last occurrence of the text TIMESTAMP from a rendered filter. For a column named UPDATED_TIMESTAMP this mangled the column name, producing &quot;UPDATED_&quot; = {ts '…'} → Column not found.</p><p><b>Resolution:</b> Fixed — only a type token is stripped. Proved.</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="jdbc-07  correctness jdbc/.../dialects/postgresqlqueryrewriter.java rewritefromitem used result.replacefirst(schemaname, …) with the schema name as a regular expression: schema my+schema produced wrong sql, schema foo[bar threw patternsyntaxexception out of the rewriter. fixed — literal, position-anchored replacement with quoting and escaping. proved.">
+          <td><code>JDBC-07</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">jdbc</span></td>
+          <td><details><summary>rewriteFromItem used result.replaceFirst(schemaName, …) with the schema name as a regular expression: schema my+schema produced wrong SQL, schema foo[bar threw PatternSyntaxException out of the rewriter.</summary><p><b>Where:</b> jdbc/.../dialects/PostgresqlQueryRewriter.java</p><p><b>Resolution:</b> Fixed — literal, position-anchored replacement with quoting and escaping. Proved.</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="cm-05  correctness core/.../util/objectcomparator.java:76 copy-paste bug: the condition read o1 instanceof number &amp;&amp; o1 instanceof number — the second operand was never checked. fixed — symmetric condition. proved (expected:&lt;0&gt; but was:&lt;-1&gt;).">
+          <td><code>CM-05</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>Copy-paste bug: the condition read o1 instanceof Number &amp;&amp; o1 instanceof Number — the second operand was never checked.</summary><p><b>Where:</b> core/.../util/ObjectComparator.java:76</p><p>Copy-paste bug: the condition read o1 instanceof Number &amp;&amp; o1 instanceof Number — the second operand was never checked. The comparator was therefore asymmetric: compare(50,&quot;10&quot;) returned +1 (numeric) but compare(&quot;10&quot;,50) returned -4 (lexicographic). FilterItem inherits this, so WHERE col &gt; '9' against a string row value &quot;10&quot; wrongly matched.</p><p><b>Resolution:</b> Fixed — symmetric condition. Proved (expected:&lt;0&gt; but was:&lt;-1&gt;).</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="cm-06  correctness core/.../util/tostringcomparator.java:58 compare(null, null) returned -1 instead of 0, violating the comparator contract. fixed. proved.">
+          <td><code>CM-06</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>compare(null, null) returned -1 instead of 0, violating the Comparator contract.</summary><p><b>Where:</b> core/.../util/ToStringComparator.java:58</p><p>compare(null, null) returned -1 instead of 0, violating the Comparator contract. A TreeMap using it stored two entries for one null key.</p><p><b>Resolution:</b> Fixed. Proved.</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="cm-07  correctness core/.../util/numbercomparator.java:94 mixed numeric types were compared via doublevalue(), losing precision: compare(biginteger(&quot;9007199254740993&quot;), 9007199254740992l) returned 0, so a treeset over the column silently dropped a row. fixed — exact bigdecimal comparison for mixed types. proved (expected:&lt;2&gt; but was:&lt;1&gt;).">
+          <td><code>CM-07</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>Mixed numeric types were compared via doubleValue(), losing precision: compare(BigInteger(&quot;9007199254740993&quot;), 9007199254740992L) returned 0, so a TreeSet over the column silently dropped a row.</summary><p><b>Where:</b> core/.../util/NumberComparator.java:94</p><p><b>Resolution:</b> Fixed — exact BigDecimal comparison for mixed types. Proved (expected:&lt;2&gt; but was:&lt;1&gt;).</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="cm-08  correctness core/.../util/numbercomparator.java:68 tonumber() returned null for both a null input and an unconvertible value, so null compared equal to a non-numeric string — but not to &quot;1234&quot;. fixed — null operands handled before conversion. proved.">
+          <td><code>CM-08</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>toNumber() returned null for both a null input and an unconvertible value, so null compared equal to a non-numeric string — but not to &quot;1234&quot;.</summary><p><b>Where:</b> core/.../util/NumberComparator.java:68</p><p><b>Resolution:</b> Fixed — null operands handled before conversion. Proved.</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="cm-09  correctness core/.../util/dateutils.java:64 get(date,int) added days  86_400_000 ms — a day is not always 24 hours. fixed — calendar.add(calendar.day_of_month, …). proved.">
+          <td><code>CM-09</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>get(Date,int) added days  86_400_000 ms — a day is not always 24 hours.</summary><p><b>Where:</b> core/.../util/DateUtils.java:64</p><p>get(Date,int) added days  86_400_000 ms — a day is not always 24 hours. In America/New_York, get(get(2010,NOVEMBER,7),1) returned 2010-11-07 23:00 (wrong day and time); across spring-forward it was off by an hour.</p><p><b>Resolution:</b> Fixed — Calendar.add(Calendar.DAY_OF_MONTH, …). Proved.</p></details></td>
+        </tr>
+        <tr data-sev="S3" data-cat="correctness" data-search="cm-10  correctness core/.../schema/mutabletable.java:135 removecolumn() left the removed column pointing back at the table, so col.getqualifiedlabel() still returned table.col. fixed. proved.">
+          <td><code>CM-10</code></td>
+          <td><span class="sev s3">S3</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>removeColumn() left the removed column pointing back at the table, so col.getQualifiedLabel() still returned TABLE.COL.</summary><p><b>Where:</b> core/.../schema/MutableTable.java:135</p><p><b>Resolution:</b> Fixed. Proved.</p></details></td>
+        </tr>
+        <tr data-sev="S3" data-cat="correctness" data-search="cm-11  correctness core/.../schema/mutableschema.java:88,98 removetable() / cleartables() left the removed table pointing back at the schema. fixed. proved.">
+          <td><code>CM-11</code></td>
+          <td><span class="sev s3">S3</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>removeTable() / clearTables() left the removed table pointing back at the schema.</summary><p><b>Where:</b> core/.../schema/MutableSchema.java:88,98</p><p><b>Resolution:</b> Fixed. Proved.</p></details></td>
+        </tr>
+        <tr data-sev="S3" data-cat="correctness" data-search="cm-12  correctness core/.../schema/abstracttable.java:228 hashcode() was getname().hashcode() → nullpointerexception for an unnamed table (new mutabletable() is legal). fixed. proved.">
+          <td><code>CM-12</code></td>
+          <td><span class="sev s3">S3</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>hashCode() was getName().hashCode() → NullPointerException for an unnamed table (new MutableTable() is legal).</summary><p><b>Where:</b> core/.../schema/AbstractTable.java:228</p><p><b>Resolution:</b> Fixed. Proved.</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="cq-02  correctness core/.../query/operatortypeimpl.java equals() was overridden but hashcode() was not — equal operatortype values landed in different buckets of a hashset/hashmap. fixed + regression test. proved.">
+          <td><code>CQ-02</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>equals() was overridden but hashCode() was not — equal OperatorType values landed in different buckets of a HashSet/HashMap.</summary><p><b>Where:</b> core/.../query/OperatorTypeImpl.java</p><p><b>Resolution:</b> Fixed + regression test. Proved.</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="cq-03  correctness core/.../query/filteritem.java:325 null semantics disagreed with sql. fixed — null now evaluates to false, matching sql. proved.">
+          <td><code>CQ-03</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>NULL semantics disagreed with SQL.</summary><p><b>Where:</b> core/.../query/FilterItem.java:325</p><p>NULL semantics disagreed with SQL. FilterItem.evaluate(Row) returned true for a NULL row value compared with DIFFERENT_FROM (NULL &lt;&gt; 'x'). Under SQL three-valued logic that expression is UNKNOWN, so the row does not satisfy the filter — and the in-memory evaluation therefore disagreed with the SQL that is pushed to datastores which execute the filter themselves.</p><p><b>Resolution:</b> Fixed — NULL now evaluates to false, matching SQL. Proved.</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="cq-04  correctness core/.../convert/stringtodateconverter.java the converter was not round-trip safe. fixed — the physical representation is parsed back with the very format that produced it. proved.">
+          <td><code>CQ-04</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>The converter was not round-trip safe.</summary><p><b>Where:</b> core/.../convert/StringToDateConverter.java</p><p>The converter was not round-trip safe. It serialised a Date with DateFormat.MEDIUM but deserialised it through TimeComparator.toDate(String) — a different parsing path — so converter.serialize(converter.deserialize(s)) did not return the original value.</p><p><b>Resolution:</b> Fixed — the physical representation is parsed back with the very format that produced it. Proved.</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="cq-05  correctness core/.../convert/stringtodateconverter.java thread safety. the simpledateformat was created once in the constructor and shared across threads. simpledateformat is not thread-safe, so concurrent conversions could produce corrupted dates. fixed — the format is guarded by its own monitor; the default constructor creates a format per call. proved.">
+          <td><code>CQ-05</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>Thread safety. The SimpleDateFormat was created once in the constructor and shared across threads. SimpleDateFormat is not thread-safe, so concurrent conversions could produce corrupted dates.</summary><p><b>Where:</b> core/.../convert/StringToDateConverter.java</p><p><b>Resolution:</b> Fixed — the format is guarded by its own monitor; the default constructor creates a format per call. Proved.</p></details></td>
+        </tr>
+        <tr data-sev="S3" data-cat="correctness" data-search="cq-06  correctness core/.../convert/stringtodateconverter.java the pattern-based constructor silently used the jvm default locale with no way to specify another, and the invalid-pattern validation happened only by side effect. fixed — a locale-aware constructor was added, the pattern is validated eagerly (fail-fast preserved), and parsing failures now raise a descriptive illegalargumentexception. proved.">
+          <td><code>CQ-06</code></td>
+          <td><span class="sev s3">S3</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>The pattern-based constructor silently used the JVM default Locale with no way to specify another, and the invalid-pattern validation happened only by side effect.</summary><p><b>Where:</b> core/.../convert/StringToDateConverter.java</p><p><b>Resolution:</b> Fixed — a Locale-aware constructor was added, the pattern is validated eagerly (fail-fast preserved), and parsing failures now raise a descriptive IllegalArgumentException. Proved.</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="nw-03  correctness kafka/.../kafkaconsumerandproducerfactory.java two copy-paste bugs in the same method: the producer's value_serializer_class_config and value_deserializer_class_config were both set from the key class rather than the value class; and createproducer assembled a properties object and then returned new kafkaproducer&lt;&gt;(baseproperties) — discarding it, so none of the configuration took effect. fixed + regression test. proved.">
+          <td><code>NW-03</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">kafka</span></td>
+          <td><details><summary>Two copy-paste bugs in the same method: the producer's VALUE_SERIALIZER_CLASS_CONFIG and VALUE_DESERIALIZER_CLASS_CONFIG were both set from the key class rather than the value class; and createProducer assembled a properties object and then returned new KafkaProducer&lt;&gt;(baseProperties) — discarding it, so none of the configuration took effect.</summary><p><b>Where:</b> kafka/.../KafkaConsumerAndProducerFactory.java</p><p><b>Resolution:</b> Fixed + regression test. Proved.</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="jdbc-11  correctness jdbc/src/test/java/.../jdbcupdatecallbacktest.java a concurrency test whose runtime varied 4.5× by jdk, and which could stall the build indefinitely. fixed — the workers are daemon threads (a stuck worker can never keep the jvm, and with it the build, alive) and the join has a four-minute timeout with an explicit assertion, so a genuine hang is reported as a test failure instead of a stalled build. the test's logic and assertions are unchanged. bounding derby's own derby.locks.waittimeout was tried as well and reverted: it is not honoured for this database, and passing it as a system property prevented the database from starting at all.">
+          <td><code>JDBC-11</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">jdbc</span></td>
+          <td><details><summary>A concurrency test whose runtime varied 4.5× by JDK, and which could stall the build indefinitely.</summary><p><b>Where:</b> jdbc/src/test/java/.../JdbcUpdateCallbackTest.java</p><p>A concurrency test whose runtime varied 4.5× by JDK, and which could stall the build indefinitely. Two threads run a read-then-update loop against Derby under REPEATABLE_READ, so every contended update produces a genuine lock cycle that Derby has to detect and roll back — the test therefore spends most of its time waiting on Derby's deadlock detector rather than testing anything. Observed: 40 s on JDK 21, 180 s on JDK 25, with a thread dump showing the workers parked in ActiveLock.waitForGrant(). Worse, it called thread.join() with no timeout, so a stuck worker would have hung the build forever, and the workers were non-daemon threads, so a stuck worker would have kept the forked test JVM alive too.</p><p><b>Resolution:</b> Fixed — the workers are daemon threads (a stuck worker can never keep the JVM, and with it the build, alive) and the join has a four-minute timeout with an explicit assertion, so a genuine hang is reported as a test failure instead of a stalled build. The test's logic and assertions are unchanged. Bounding Derby's own derby.locks.waitTimeout was tried as well and reverted: it is not honoured for this database, and passing it as a system property prevented the database from starting at all.</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="correctness" data-search="es-01  correctness elasticsearch/native/.../elasticsearchdatacontext.java, elasticsearch/rest/.../elasticsearchrest{client,datacontext}.java the elasticsearch 7.17 client api moved four things that 7.3.1 had in different places: clusterstate.getmetadata() → getmetadata() (the return type metadata became metadata), indexmetadata/mappingmetadata → indexmetadata/mappingmetadata, org.elasticsearch.common.unit.timevalue → org.elasticsearch.core.timevalue, and the xcontent classes moved from org.elasticsearch.common.xcontent to org.elasticsearch.xcontent. fixed — the api moves are applied, and the rest client's mock in elasticsearchrestdatasettest was rewritten to answer the version-validation request with a real main-response body, while still asserting that exactly one clear-scroll request is performed.">
+          <td><code>ES-01</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">correctness</span></td>
+          <td><span class="where">elasticsearch</span></td>
+          <td><details><summary>The Elasticsearch 7.17 client API moved four things that 7.3.1 had in different places: ClusterState.getMetaData() → getMetadata() (the return type MetaData became Metadata), IndexMetaData/MappingMetaData → IndexMetadata/MappingMetadata, org.elasticsearch.common.unit.TimeValue → org.elasticsearch.core.TimeValue, and the xcontent classes moved from org.elasticsearch.common.xcontent to org.elasticsearch.xcontent.</summary><p><b>Where:</b> elasticsearch/native/.../ElasticSearchDataContext.java, elasticsearch/rest/.../ElasticSearchRest{Client,DataContext}.java</p><p>The Elasticsearch 7.17 client API moved four things that 7.3.1 had in different places: ClusterState.getMetaData() → getMetadata() (the return type MetaData became Metadata), IndexMetaData/MappingMetaData → IndexMetadata/MappingMetadata, org.elasticsearch.common.unit.TimeValue → org.elasticsearch.core.TimeValue, and the xcontent classes moved from org.elasticsearch.common.xcontent to org.elasticsearch.xcontent. The last one also changed the high level REST client's behaviour: it now validates the server version with a GET / before the first real request, and checks the X-Elastic-Product response header.</p><p><b>Resolution:</b> Fixed — the API moves are applied, and the REST client's mock in ElasticSearchRestDataSetTest was rewritten to answer the version-validation request with a real main-response body, while still asserting that exactly one clear-scroll request is performed.</p></details></td>
+        </tr>
+        <tr data-sev="—" data-cat="refuted" data-search="r-01  refuted  refuted — &quot;in-list values are rendered into sql with no escaping&quot; — reported by the jdbc investigator as an s1 out-of-scope finding, with the example where &quot;c&quot; in ('x') or 1=1 --'). refuted. defaultqueryrewriter.rewritefilteritem has a third branch — operand instanceof iterable || operand.getclass().isarray() — whose comment reads &quot;each individual element must be escaped&quot;, and which applies escapequotes to every string element of the list. the investigator had read only the operand instanceof string branch.">
+          <td><code>R-01</code></td>
+          <td><span class="sev">—</span></td>
+          <td><span class="pill danger">refuted</span></td>
+          <td><span class="where">—</span></td>
+          <td><details><summary>REFUTED — &quot;IN-list values are rendered into SQL with no escaping&quot; — reported by the JDBC investigator as an S1 out-of-scope finding, with the example WHERE &quot;C&quot; IN ('x') OR 1=1 --').</summary><p>&quot;IN-list values are rendered into SQL with no escaping&quot; — reported by the JDBC investigator as an S1 out-of-scope finding, with the example WHERE &quot;C&quot; IN ('x') OR 1=1 --').</p><p><b>Resolution:</b> REFUTED. DefaultQueryRewriter.rewriteFilterItem has a third branch — operand instanceof Iterable || operand.getClass().isArray() — whose comment reads &quot;Each individual element must be escaped&quot;, and which applies escapeQuotes to every String element of the list. The investigator had read only the operand instanceof String branch.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="adapters" data-search="nw-04  adapters sugarcrm/.../sugarcrmxmlhelper.java parses xml from a remote server with a default documentbuilderfactory → xxe (local file disclosure + ssrf). fixed — new sugarcrmxmlsecurity mirrors xml/xmlsecurityutils; disallow-doctype-decl fails closed. 3 tests, mutation-proved.">
+          <td><code>NW-04</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill">adapters</span></td>
+          <td><span class="where">sugarcrm</span></td>
+          <td><details><summary>Parses XML from a remote server with a default DocumentBuilderFactory → XXE (local file disclosure + SSRF).</summary><p><b>Where:</b> sugarcrm/.../SugarCrmXmlHelper.java</p><p><b>Resolution:</b> Fixed — new SugarCrmXmlSecurity mirrors xml/XmlSecurityUtils; disallow-doctype-decl fails closed. 3 tests, mutation-proved.</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="adapters" data-search="nw-05  adapters spring/.../jdbcdatacontextfactorybeandelegate.java:63 the jdbc url is logged at error, and jdbc urls routinely embed credentials (?user=u&amp;password=p); the driver's exception repeats it. fixed — new credentialredactor masks credential-bearing parameters and url user-info; a masked throwable with the same stack trace is logged. 6 tests, mutation-proved.">
+          <td><code>NW-05</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill">adapters</span></td>
+          <td><span class="where">spring</span></td>
+          <td><details><summary>The JDBC URL is logged at ERROR, and JDBC URLs routinely embed credentials (?user=u&amp;password=p); the driver's exception repeats it.</summary><p><b>Where:</b> spring/.../JdbcDataContextFactoryBeanDelegate.java:63</p><p><b>Resolution:</b> Fixed — new CredentialRedactor masks credential-bearing parameters and URL user-info; a masked throwable with the same stack trace is logged. 6 tests, mutation-proved.</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="adapters" data-search="nw-06  adapters cassandra/.../cassandradatacontext.java a session (with its own connection pool) was created by cluster.connect() at three call sites and never closed — one pool leaked per query. fixed — one lazily created, reused session; the context is closeable and closes only the session it created. 3 tests against a hand-rolled fake driver, mutation-proved.">
+          <td><code>NW-06</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill">adapters</span></td>
+          <td><span class="where">cassandra</span></td>
+          <td><details><summary>A Session (with its own connection pool) was created by cluster.connect() at three call sites and never closed — one pool leaked per query.</summary><p><b>Where:</b> cassandra/.../CassandraDataContext.java</p><p><b>Resolution:</b> Fixed — one lazily created, reused Session; the context is Closeable and closes only the session it created. 3 tests against a hand-rolled fake driver, mutation-proved.</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="S3" data-cat="adapters" data-search="nw-07  adapters sugarcrm/.../sugarcrmdatacontext.java:84,107 the wsdl url (which may embed credentials) and the login user name were logged. fixed — the url is masked, the user name dropped.">
+          <td><code>NW-07</code></td>
+          <td><span class="sev s3">S3</span></td>
+          <td><span class="pill">adapters</span></td>
+          <td><span class="where">sugarcrm</span></td>
+          <td><details><summary>The WSDL URL (which may embed credentials) and the login user name were logged.</summary><p><b>Where:</b> sugarcrm/.../SugarCrmDataContext.java:84,107</p><p><b>Resolution:</b> Fixed — the URL is masked, the user name dropped.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="adapters" data-search="nw-08  adapters elasticsearch/native/.../elasticsearchdatacontextfactory.java the factory documented username, password, ssl, keystorepath and keystorepassword for the transport client, but createtransportclient used only name and cluster.name — the configuration was silently ignored, so the connection was always plaintext and unauthenticated. fixed — a byte-level scan of the es 7.17.28 jars shows the transport client honours none of them (no sslhandler, no xpack.security.transport.ssl., x-pack-core absent), so implementing them would have been exactly the half-wired knob the brief forbids. the five options were removed from the javadoc and are now rejected with a message pointing at the rest client, which does support them. 6 tests, mutation-proved.">
+          <td><code>NW-08</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill">adapters</span></td>
+          <td><span class="where">elasticsearch</span></td>
+          <td><details><summary>The factory documented username, password, ssl, keystorePath and keystorePassword for the transport client, but createTransportClient used only name and cluster.name — the configuration was silently ignored, so the connection was always plaintext and unauthenticated.</summary><p><b>Where:</b> elasticsearch/native/.../ElasticSearchDataContextFactory.java</p><p><b>Resolution:</b> Fixed — a byte-level scan of the ES 7.17.28 jars shows the transport client honours none of them (no SslHandler, no xpack.security.transport.ssl., x-pack-core absent), so implementing them would have been exactly the half-wired knob the brief forbids. The five options were removed from the javadoc and are now rejected with a message pointing at the REST client, which does support them. 6 tests, mutation-proved.</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="S3" data-cat="adapters" data-search="nw-09  adapters couchdb/.../couchdbdatacontextfactory.java:59-60 username(null) / password(null) were called unconditionally after url(url), wiping the credentials ektorp had already parsed out of the url — so a url with embedded credentials never worked. fixed — both setters are called only when the property is non-null. 4 tests, mutation-proved.">
+          <td><code>NW-09</code></td>
+          <td><span class="sev s3">S3</span></td>
+          <td><span class="pill">adapters</span></td>
+          <td><span class="where">couchdb</span></td>
+          <td><details><summary>username(null) / password(null) were called unconditionally after url(url), wiping the credentials ektorp had already parsed out of the URL — so a URL with embedded credentials never worked.</summary><p><b>Where:</b> couchdb/.../CouchDbDataContextFactory.java:59-60</p><p><b>Resolution:</b> Fixed — both setters are called only when the property is non-null. 4 tests, mutation-proved.</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="S3" data-cat="adapters" data-search="nw-10  adapters dynamodb/.../dynamodbdatacontextfactory.java a user name without a password produced new basicawscredentials(username, null) and the sdk's opaque secret key cannot be null. fixed — fails fast naming the missing property. 2 tests, mutation-proved.">
+          <td><code>NW-10</code></td>
+          <td><span class="sev s3">S3</span></td>
+          <td><span class="pill">adapters</span></td>
+          <td><span class="where">dynamodb</span></td>
+          <td><details><summary>A user name without a password produced new BasicAWSCredentials(username, null) and the SDK's opaque Secret key cannot be null.</summary><p><b>Where:</b> dynamodb/.../DynamoDbDataContextFactory.java</p><p><b>Resolution:</b> Fixed — fails fast naming the missing property. 2 tests, mutation-proved.</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="S3" data-cat="adapters" data-search="nw-11  adapters salesforce/.../salesforcedatacontext.java:389 every soql query was logged at info, writing query literals — potentially personal data — into the log. fixed — logged at debug with the literals redacted. 4 tests, mutation-proved.">
+          <td><code>NW-11</code></td>
+          <td><span class="sev s3">S3</span></td>
+          <td><span class="pill">adapters</span></td>
+          <td><span class="where">salesforce</span></td>
+          <td><details><summary>Every SOQL query was logged at INFO, writing query literals — potentially personal data — into the log.</summary><p><b>Where:</b> salesforce/.../SalesforceDataContext.java:389</p><p><b>Resolution:</b> Fixed — logged at DEBUG with the literals redacted. 4 tests, mutation-proved.</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="S3" data-cat="adapters" data-search="nw-12  adapters neo4j/.../neo4jdatacontext.java the closeablehttpclient the context created was never closed and the context exposed no close(). fixed — the context is closeable and closes only the client it created. 3 tests, mutation-proved.">
+          <td><code>NW-12</code></td>
+          <td><span class="sev s3">S3</span></td>
+          <td><span class="pill">adapters</span></td>
+          <td><span class="where">neo4j</span></td>
+          <td><details><summary>The CloseableHttpClient the context created was never closed and the context exposed no close().</summary><p><b>Where:</b> neo4j/.../Neo4jDataContext.java</p><p><b>Resolution:</b> Fixed — the context is Closeable and closes only the client it created. 3 tests, mutation-proved.</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="core" data-search="cm-13  core core/.../util/legacydeserializationobjectinputstream.java the deserialized legacy operator was equals to operatortype.equals_to but hashed differently (an enum's hashcode is final and identity-based), so equal operators could both end up in a hashset. fixed — the stream now enables resolveobject and substitutes the legacy enum constants with the canonical modern constants, so the deserialized operator is operatortype.equals_to. the jdk constraint (an enum descriptor binds only to an enum class) was verified against the temurin src.zip, not assumed. 6 tests, mutation-proved.">
+          <td><code>CM-13</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">core</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>The deserialized legacy operator was equals to OperatorType.EQUALS_TO but hashed differently (an enum's hashCode is final and identity-based), so equal operators could both end up in a HashSet.</summary><p><b>Where:</b> core/.../util/LegacyDeserializationObjectInputStream.java</p><p><b>Resolution:</b> Fixed — the stream now enables resolveObject and substitutes the legacy enum constants with the canonical modern constants, so the deserialized operator is OperatorType.EQUALS_TO. The JDK constraint (an enum descriptor binds only to an enum class) was verified against the Temurin src.zip, not assumed. 6 tests, mutation-proved.</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="jdbc" data-search="jdbc-08  jdbc jdbc/.../jdbcbatchupdatecallback.java executepreparedstatement returned -1, so updatesummary.getupdatedrows() reported null (&quot;unknown&quot;) although executebatch()'s int[] holds the real counts. fixed — each statement's kind is tracked per preparedstatement (an identityhashmap, because a new statement can be executed while another is pending) and the batch counts are attributed to insert/update/delete. 3 tests, mutation-proved.">
+          <td><code>JDBC-08</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">jdbc</span></td>
+          <td><span class="where">jdbc</span></td>
+          <td><details><summary>executePreparedStatement returned -1, so UpdateSummary.getUpdatedRows() reported null (&quot;unknown&quot;) although executeBatch()'s int[] holds the real counts.</summary><p><b>Where:</b> jdbc/.../JdbcBatchUpdateCallback.java</p><p><b>Resolution:</b> Fixed — each statement's kind is tracked per PreparedStatement (an IdentityHashMap, because a new statement can be executed while another is pending) and the batch counts are attributed to insert/update/delete. 3 tests, mutation-proved.</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="S3" data-cat="adapters" data-search="nw-13  adapters core/.../factory/datacontextfactoryregistryimpl.java serviceloader.load(...) resolves through the thread context classloader, so in a container or a shaded fat jar the factories are silently not found. fixed — discovery now runs with the tccl and the class's own loader, de-duplicated by factory name, and createdatacontext fails with a message naming the cause. 1 test, mutation-proved.">
+          <td><code>NW-13</code></td>
+          <td><span class="sev s3">S3</span></td>
+          <td><span class="pill">adapters</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>ServiceLoader.load(...) resolves through the thread context classloader, so in a container or a shaded fat jar the factories are silently not found.</summary><p><b>Where:</b> core/.../factory/DataContextFactoryRegistryImpl.java</p><p><b>Resolution:</b> Fixed — discovery now runs with the TCCL and the class's own loader, de-duplicated by factory name, and createDataContext fails with a message naming the cause. 1 test, mutation-proved.</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="—" data-cat="supply-chain" data-search="dep-01  supply-chain mongodb/mongo3, mongodb/common the mongo-java-driver:3.1.0 adapter could not use a current server, and the shared common module referenced com.mongodb.dbobject, which does not exist in the 4.x driver. fixed — migrated to org.mongodb:mongodb-driver-sync:4.11.1; common is now driver-free (proved with javap: no com/mongodb or org/bson reference in its bytecode). two real bugs surfaced on the way: the advised write concern was discarded (withwriteconcern returns a new collection) and advicedeletequery was never called. verified against a live mongodb 5.0 — 13 tests, 2.7 s elapsed, against 0.07 s when no server is configured, which is the proof that the live assertions ran.">
+          <td><code>DEP-01</code></td>
+          <td><span class="sev">—</span></td>
+          <td><span class="pill mute">supply-chain</span></td>
+          <td><span class="where">mongodb</span></td>
+          <td><details><summary>The mongo-java-driver:3.1.0 adapter could not use a current server, and the shared common module referenced com.mongodb.DBObject, which does not exist in the 4.x driver.</summary><p><b>Where:</b> mongodb/mongo3, mongodb/common</p><p><b>Resolution:</b> Fixed — migrated to org.mongodb:mongodb-driver-sync:4.11.1; common is now driver-free (proved with javap: no com/mongodb or org/bson reference in its bytecode). Two real bugs surfaced on the way: the advised write concern was discarded (withWriteConcern returns a new collection) and adviceDeleteQuery was never called. Verified against a live MongoDB 5.0 — 13 tests, 2.7 s elapsed, against 0.07 s when no server is configured, which is the proof that the live assertions ran.</p></details></td>
+        </tr>
+        <tr data-sev="—" data-cat="supply-chain" data-search="dep-02  supply-chain cassandra, mongodb/mongo3, mongodb/common the cassandra adapter used com.datastax.cassandra:cassandra-driver-core:3.11.5 and the mongodb adapter mongo-java-driver:3.1.0 — both years out of date, and the mongodb one could not use a current server. fixed and verified against live servers — mongodb 5.0 (13 tests, 2.7 s elapsed, against 0.07 s when no server is configured) and cassandra 4.1 (10 tests, 15.1 s elapsed). the cassandra test was previously skipped on every jdk 9+ because cassandra-unit's embedded server does not work there; it now runs against an external server, which is what made the migration verifiable at all. two real bugs surfaced in the mongodb adapter on the way: the advised write concern was discarded (withwriteconcern returns a new collection) and advicedeletequery was never called. mongodb/common is now provably driver-free (javap: no com/mongodb or org/bson reference in its bytecode). breaking public-api changes are listed in supply-chain.md §5.3.">
+          <td><code>DEP-02</code></td>
+          <td><span class="sev">—</span></td>
+          <td><span class="pill mute">supply-chain</span></td>
+          <td><span class="where">cassandra, mongodb</span></td>
+          <td><details><summary>The Cassandra adapter used com.datastax.cassandra:cassandra-driver-core:3.11.5 and the MongoDB adapter mongo-java-driver:3.1.0 — both years out of date, and the MongoDB one could not use a current server.</summary><p><b>Where:</b> cassandra, mongodb/mongo3, mongodb/common</p><p>The Cassandra adapter used com.datastax.cassandra:cassandra-driver-core:3.11.5 and the MongoDB adapter mongo-java-driver:3.1.0 — both years out of date, and the MongoDB one could not use a current server. Both are API migrations, not version bumps: Cluster becomes CqlSession and the metadata types move to com.datastax.oss.driver.api.core.metadata.schema; DB/DBCollection/DBObject become MongoDatabase/MongoCollection&lt;Document&gt;/Document. The shared mongodb/common module had to become driver-free, because mongodb/mongo2 pins the 2.x driver and mongodb/mongo3 the 4.x one, and a class referenced by common's bytecode may not exist in only one of them.</p><p><b>Resolution:</b> Fixed and verified against live servers — MongoDB 5.0 (13 tests, 2.7 s elapsed, against 0.07 s when no server is configured) and Cassandra 4.1 (10 tests, 15.1 s elapsed). The Cassandra test was previously skipped on every JDK 9+ because cassandra-unit's embedded server does not work there; it now runs against an external server, which is what made the migration verifiable at all. Two real bugs surfaced in the MongoDB adapter on the way: the advised write concern was discarded (withWriteConcern returns a new collection) and adviceDeleteQuery was never called. mongodb/common is now provably driver-free (javap: no com/mongodb or org/bson reference in its bytecode). Breaking public-API changes are listed in SUPPLY-CHAIN.md §5.3.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="build" data-search="sc-05  build elasticsearch/native/.../elasticsearchdatacontextfactory.java found while fixing nw-08: the pre-existing &quot;name&quot; setting is rejected by es 7.17 (unknown setting [name]), so create() threw on every call — the elasticsearch native transport adapter was entirely unusable. fixed — the invalid setting is gone; a new test builds a real prebuilttransportclient from the factory settings.">
+          <td><code>SC-05</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill mute">build</span></td>
+          <td><span class="where">elasticsearch</span></td>
+          <td><details><summary>Found while fixing NW-08: the pre-existing &quot;name&quot; setting is rejected by ES 7.17 (unknown setting [name]), so create() threw on every call — the Elasticsearch native transport adapter was entirely unusable.</summary><p><b>Where:</b> elasticsearch/native/.../ElasticSearchDataContextFactory.java</p><p><b>Resolution:</b> Fixed — the invalid setting is gone; a new test builds a real PreBuiltTransportClient from the factory settings.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="build" data-search="sc-06  build dynamodb/pom.xml found while verifying the team's work: the jackson 2.17.3 upgrade invalidated aws-java-sdk-dynamodb:1.11.500, which needs jackson-databind &lt; 2.12 — the module could not create a data context at all (noclassdeffounderror: propertynamingstrategy$pascalcasestrategy). fixed — aws-java-sdk-dynamodb moved to 1.12.780, which is compatible with jackson 2.17.3.">
+          <td><code>SC-06</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill mute">build</span></td>
+          <td><span class="where">dynamodb</span></td>
+          <td><details><summary>Found while verifying the team's work: the jackson 2.17.3 upgrade invalidated aws-java-sdk-dynamodb:1.11.500, which needs jackson-databind &lt; 2.12 — the module could not create a data context at all (NoClassDefFoundError: PropertyNamingStrategy$PascalCaseStrategy).</summary><p><b>Where:</b> dynamodb/pom.xml</p><p><b>Resolution:</b> Fixed — aws-java-sdk-dynamodb moved to 1.12.780, which is compatible with jackson 2.17.3.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="jdbc" data-search="jdbc-10  jdbc core/.../query/query.java, filteritem.java, groupbyitem.java, orderbyitem.java the alias of a from item was rendered raw and unescaped in the where / group by / having / order by clauses — a sql injection. fixed — query.clone() now clones every clause item with the cloned query, so each one is re-bound to the cloned fromitems. filteritem also clones its child items recursively instead of sharing them with the original query. 3 new core tests (where / group by+having+order by / compound filter), mutation-proved: the three fail against the pre-change query.java (where c.name instead of where &quot;c&quot;.name) and pass after it; the other 11 tests in the class pass in both states.">
+          <td><code>JDBC-10</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill">jdbc</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>The alias of a FROM item was rendered raw and unescaped in the WHERE / GROUP BY / HAVING / ORDER BY clauses — a SQL injection.</summary><p><b>Where:</b> core/.../query/Query.java, FilterItem.java, GroupByItem.java, OrderByItem.java</p><p>The alias of a FROM item was rendered raw and unescaped in the WHERE / GROUP BY / HAVING / ORDER BY clauses — a SQL injection. Query.clone() cloned the select-clause items with the cloned query, so their SelectItems were re-bound to the cloned FromItems — but it cloned the where-, group-by-, having- and order-by items without it, so their SelectItems kept a detached copy of the FromItem. The JDBC module quotes (and escapes) the alias of a FromItem after cloning the query, so the FROM clause rendered the escaped alias while the WHERE clause rendered the unquoted, unescaped original. A FROM alias of x&quot; , (SELECT 1) AS &quot;y&quot; produced ... FROM t &quot;x&quot;&quot; , (SELECT 1) AS &quot;&quot;y&quot;&quot;&quot; WHERE x&quot; , (SELECT 1) AS &quot;y&quot;.c = 'v' — the quote character terminates the identifier and (SELECT 1) AS &quot;y&quot; becomes a live subquery. The same inconsistency made the statement syntactically invalid for any alias that needed quoting (WHERE c d.c is three tokens, not a column reference).</p><p><b>Resolution:</b> Fixed — Query.clone() now clones every clause item with the cloned query, so each one is re-bound to the cloned FromItems. FilterItem also clones its child items recursively instead of sharing them with the original query. 3 new core tests (WHERE / GROUP BY+HAVING+ORDER BY / compound filter), mutation-proved: the three fail against the pre-change Query.java (WHERE c.name instead of WHERE &quot;c&quot;.name) and pass after it; the other 11 tests in the class pass in both states.</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="S3" data-cat="jdbc" data-search="jdbc-09  jdbc jdbc/.../dialects/hsqldbqueryrewriter.java needsquoting computed containslowercase from identifierquotestring instead of from alias, so its documented &quot;always escape&quot; branch was dead code — the file even carried a comment saying so. fixed — the check is performed against the alias, as the javadoc always claimed. this was only safe after jdbc-10: the qualifiers now follow the escaped alias, so the from clause and the qualifiers agree. the 3 pinned sql expectations in jdbcdatacontexttest that encoded the old, inconsistent sql were updated to the new, consistent sql, and the statements behind them now execute (they previously failed with column not found: a.customernumber). 1 new test in hsqldbtest proves that the from clause and the where clause use the same alias and that the statement executes.">
+          <td><code>JDBC-09</code></td>
+          <td><span class="sev s3">S3</span></td>
+          <td><span class="pill">jdbc</span></td>
+          <td><span class="where">jdbc</span></td>
+          <td><details><summary>needsQuoting computed containsLowerCase from identifierQuoteString instead of from alias, so its documented &quot;always escape&quot; branch was dead code — the file even carried a comment saying so.</summary><p><b>Where:</b> jdbc/.../dialects/HsqldbQueryRewriter.java</p><p><b>Resolution:</b> Fixed — the check is performed against the alias, as the javadoc always claimed. This was only safe after JDBC-10: the qualifiers now follow the escaped alias, so the FROM clause and the qualifiers agree. The 3 pinned SQL expectations in JdbcDataContextTest that encoded the old, inconsistent SQL were updated to the new, consistent SQL, and the statements behind them now execute (they previously failed with Column not found: A.CUSTOMERNUMBER). 1 new test in HsqldbTest proves that the FROM clause and the WHERE clause use the same alias and that the statement executes.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="adapters" data-search="nw-14  adapters couchdb/.../couchdbdatacontext.java, couchdbdatacontextfactory.java the couchdb adapter's write path failed against couchdb 2.3 and later. fixed — the adapter supplies its own objectmapperfactory (couchdbobjectmapperfactory) that delegates to ektorp's stdobjectmapperfactory and registers a jackson deserializationproblemhandler which tolerates the opaque sequence only for the purge_seq property and only for int targets; every other weird string value still fails exactly as before. 4 new tests, mutation-proved, and the live integration test passes against couchdb 2.3.1 with the fix and fails without it.">
+          <td><code>NW-14</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill">adapters</span></td>
+          <td><span class="where">couchdb</span></td>
+          <td><details><summary>The CouchDB adapter's write path failed against CouchDB 2.3 and later.</summary><p><b>Where:</b> couchdb/.../CouchDbDataContext.java, CouchDbDataContextFactory.java</p><p>The CouchDB adapter's write path failed against CouchDB 2.3 and later. org.ektorp:org.ektorp:1.5.0 (last released 2016) declares DbInfo.purgeSeq as an int, but those servers return &quot;purge_seq&quot; as an opaque string (&quot;0-g1AAAAEzeJzLYWBg4MhgTmHgzcvPy09JdcjL…&quot;), so Jackson raised Cannot deserialize value of type 'int' from String &quot;0-g1AAAA…&quot; through DbInfo[&quot;purge_seq&quot;]. The failure surfaced in CouchDbDataContext.getRowCount() — which the update callback calls — so the document was written and the operation then reported an error. ektorp already tolerates a string update_seq (it is a JsonNode there); only purge_seq was missed.</p><p><b>Resolution:</b> Fixed — the adapter supplies its own ObjectMapperFactory (CouchDbObjectMapperFactory) that delegates to ektorp's StdObjectMapperFactory and registers a Jackson DeserializationProblemHandler which tolerates the opaque sequence only for the purge_seq property and only for int targets; every other weird string value still fails exactly as before. 4 new tests, mutation-proved, and the live integration test passes against CouchDB 2.3.1 with the fix and fails without it.</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="S3" data-cat="adapters" data-search="nw-15  adapters neo4j/.../neo4jdatacontext.java the serviceroot argument was assigned to the field after the request wrapper had already been built with the default &quot;/db/data&quot; — so the caller's argument never reached the wrapper and was silently ignored. fixed — the field is assigned before the wrapper is created, in every constructor that takes a serviceroot. 7 new tests, mutation-proved (4 of them fail before the fix).">
+          <td><code>NW-15</code></td>
+          <td><span class="sev s3">S3</span></td>
+          <td><span class="pill">adapters</span></td>
+          <td><span class="where">neo4j</span></td>
+          <td><details><summary>The serviceRoot argument was assigned to the field after the request wrapper had already been built with the default &quot;/db/data&quot; — so the caller's argument never reached the wrapper and was silently ignored.</summary><p><b>Where:</b> neo4j/.../Neo4jDataContext.java</p><p><b>Resolution:</b> Fixed — the field is assigned before the wrapper is created, in every constructor that takes a serviceRoot. 7 new tests, mutation-proved (4 of them fail before the fix).</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="S3" data-cat="adapters" data-search="nw-16  adapters elasticsearch/native/.../elasticsearchdatacontextfactory.java accepts() accepted the &quot;node&quot; client type and the es-node / elasticsearch-node data context types, but create() always built a transport client — and with no hostname/port configured, properties.getport() was null and was auto-unboxed to int: a raw nullpointerexception for a documented, accepted configuration. fixed — the node client type is rejected with a message that explains that the elasticsearch node client is an in-process client that a remote client cannot obtain in elasticsearch 7.x, and that names the transport client and the rest client as the alternatives. the port auto-unboxing can no longer produce an npe. 5 new tests, mutation-proved.">
+          <td><code>NW-16</code></td>
+          <td><span class="sev s3">S3</span></td>
+          <td><span class="pill">adapters</span></td>
+          <td><span class="where">elasticsearch</span></td>
+          <td><details><summary>accepts() accepted the &quot;node&quot; client type and the es-node / elasticsearch-node data context types, but create() always built a transport client — and with no hostname/port configured, properties.getPort() was null and was auto-unboxed to int: a raw NullPointerException for a documented, accepted configuration.</summary><p><b>Where:</b> elasticsearch/native/.../ElasticSearchDataContextFactory.java</p><p><b>Resolution:</b> Fixed — the node client type is rejected with a message that explains that the Elasticsearch node client is an in-process client that a remote client cannot obtain in Elasticsearch 7.x, and that names the transport client and the REST client as the alternatives. The port auto-unboxing can no longer produce an NPE. 5 new tests, mutation-proved.</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="S3" data-cat="adapters" data-search="nw-17  adapters dynamodb/.../dynamodbdatacontextfactory.java the &quot;no credentials → default aws provider chain&quot; path had never been covered by a test, and a missing region produced the sdk's opaque sdkclientexception: unable to find a region via the region provider chain… — which does not say which metamodel property is missing (the same problem nw-10 had for the credentials). fixed — 4 new tests cover the default provider chain, and the factory now fails fast with a message naming the missing region property — but only after the sdk's own region provider chain has failed, so a region supplied through the environment still works. mutation-proved.">
+          <td><code>NW-17</code></td>
+          <td><span class="sev s3">S3</span></td>
+          <td><span class="pill">adapters</span></td>
+          <td><span class="where">dynamodb</span></td>
+          <td><details><summary>The &quot;no credentials → default AWS provider chain&quot; path had never been covered by a test, and a missing region produced the SDK's opaque SdkClientException: Unable to find a region via the region provider chain… — which does not say which MetaModel property is missing (the same problem NW-10 had for the credentials).</summary><p><b>Where:</b> dynamodb/.../DynamoDbDataContextFactory.java</p><p><b>Resolution:</b> Fixed — 4 new tests cover the default provider chain, and the factory now fails fast with a message naming the missing region property — but only after the SDK's own region provider chain has failed, so a region supplied through the environment still works. Mutation-proved.</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="adapters" data-search="nw-18  adapters sugarcrm (the jax-ws runtime) investigated and closed as _not exploitable_. closed — no production change was needed. new sugarcrmsoapxxetest drives the module's real soap call path against a local httpserver that serves the module's own wsdl and a crafted response. it now covers five payload shapes — external general entity, internal general entity, external parameter entity (the classic bypass), external dtd subset and nested entities (&quot;billion laughs&quot;) — across four content types (text/xml with and without charset, application/soap+xml, application/xml), plus a benign control that proves the harness really drives the soap path and a positive control in which a permissive stax factory does expand the same payload (proving the payload is armed and that the assertions are not vacuous). mutation-proved: weakening the parser configuration makes exactly the xxe tests fail with the secret visible in the captured traffic, and reverting makes them pass. the jdk's dom parser is also loaded — but on the wsdl path, where the ri's xmlentityresolver and the xml catalog machinery restrict entity resolution; that path was tested too and is protected. residual risk, recorded: jaxws-rt is a provided dependency, so the consuming application supplies the jax-ws implementation; the two versions the module pins were verified, a substituted stack was not. the project-level fix for that would be to give jaxws-rt compile scope, which changes the published packaging and is a project decision, not a module-local fix.">
+          <td><code>NW-18</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill">adapters</span></td>
+          <td><span class="where">sugarcrm (the JAX-WS runtime)</span></td>
+          <td><details><summary>Investigated and closed as _not exploitable_.</summary><p>Investigated and closed as _not exploitable_. The open item asserted that the inbound SOAP response is parsed by the JAX-WS/JAXB runtime with default (unsafe) settings, and recommended a META-INF/services/com.sun.xml.ws.spi.WSDLParser override. The recommendation was not implementable — that SPI does not exist in JAX-WS RI 2.x (neither 2.3.1 nor the JDK-8 profile's 2.2.10), and it would in any case govern WSDL parsing, not inbound messages. The facts, established by experiment rather than by argument: the inbound response is read by Woodstox 5.1.0 (com.ctc.wstx.stax.WstxInputFactory) through the RI's XMLStreamReaderFactory$Woodstox, whose live configuration is javax.xml.stream.supportDTD=false and IS_SUPPORTING_EXTERNAL_ENTITIES=false — set by the RI itself on the factory instance it creates, so the hardening travels with the RI, not with Woodstox: which StAX implementation is on the classpath does not change the verdict. An entity-bearing SOAP response is therefore rejected (WstxParsingException: Undeclared general entity &quot;xxe&quot;), and the local file it points at never appears in the module's traffic.</p><p><b>Resolution:</b> Closed — no production change was needed. New SugarCrmSoapXxeTest drives the module's real SOAP call path against a local HttpServer that serves the module's own WSDL and a crafted response. It now covers five payload shapes — external general entity, internal general entity, external parameter entity (the classic bypass), external DTD subset and nested entities (&quot;billion laughs&quot;) — across four content types (text/xml with and without charset, application/soap+xml, application/xml), plus a benign control that proves the harness really drives the SOAP path and a positive control in which a permissive StAX factory does expand the same payload (proving the payload is armed and that the assertions are not vacuous). Mutation-proved: weakening the parser configuration makes exactly the XXE tests fail with the secret visible in the captured traffic, and reverting makes them pass. The JDK's DOM parser is also loaded — but on the WSDL path, where the RI's XMLEntityResolver and the XML catalog machinery restrict entity resolution; that path was tested too and is protected. Residual risk, recorded: jaxws-rt is a provided dependency, so the consuming application supplies the JAX-WS implementation; the two versions the module pins were verified, a substituted stack was not. The project-level fix for that would be to give jaxws-rt compile scope, which changes the published packaging and is a project decision, not a module-local fix.</p><p class="proved">mutation-proved — the new test fails against the pre-fix code</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="infrastructure" data-search="infra-01  infrastructure core/.../query/query.java (found while publishing the fork) the rebuilt baseline silently dropped a test fixture that upstream tracks. fixed — the audit commits were re-based onto upstream's real history (bf0190ca, the attic-198 commit) rather than onto a recreated root commit, so the fixture is tracked again and the upstream lineage is preserved. git diff --stat &lt;upstream&gt; &lt;baseline&gt; now shows the two fixture files as the only differences, and sqlitetest passes 14/14. the lesson is recorded in agents.md.">
+          <td><code>INFRA-01</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill mute">infrastructure</span></td>
+          <td><span class="where">core</span></td>
+          <td><details><summary>The rebuilt baseline silently dropped a test fixture that upstream tracks.</summary><p><b>Where:</b> core/.../query/Query.java (found while publishing the fork)</p><p>The rebuilt baseline silently dropped a test fixture that upstream tracks. jdbc/src/test/resources/.gitignore ignores /trac.db, but upstream committed that file before the ignore rule existed, so it is tracked there. Rebuilding the baseline with git add -A from a working tree therefore dropped it — and the working tree still had the file, so every local build passed. A fresh clone of the repository would have failed SqliteTest, which copies src/test/resources/trac.db into target/. The &quot;byte-identical&quot; verification compared the working tree, not the commit, so it could not see this.</p><p><b>Resolution:</b> Fixed — the audit commits were re-based onto upstream's real history (bf0190ca, the ATTIC-198 commit) rather than onto a recreated root commit, so the fixture is tracked again and the upstream lineage is preserved. git diff --stat &lt;upstream&gt; &lt;baseline&gt; now shows the two fixture files as the only differences, and SqliteTest passes 14/14. The lesson is recorded in AGENTS.md.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="infrastructure" data-search="infra-02  infrastructure .github/workflows/build.yml the continuous integration workflow was rejected by github before a single job started. fixed — the key is bound at the job level (env:) and the steps test the env context, which is available in a step-level if:. the ci now runs on jdk 11, 17, 21 and 25, plus the integration tests against live mongodb, cassandra, couchdb and neo4j, and the weekly dependency scan. the lesson is recorded in agents.md.">
+          <td><code>INFRA-02</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill mute">infrastructure</span></td>
+          <td><span class="where">.github</span></td>
+          <td><details><summary>The continuous integration workflow was rejected by GitHub before a single job started.</summary><p><b>Where:</b> .github/workflows/build.yml</p><p>The continuous integration workflow was rejected by GitHub before a single job started. The dependency-check job tested the NVD key with if: ${{ secrets.NVD_API_KEY != '' }} in a step-level condition — and the secrets context is not available there. GitHub rejects the whole workflow and reports it as a workflow file error, so the symptom was a run that failed in 0 seconds with no jobs and no log to read. It went unnoticed because the upstream repository was archived and the workflow had never run.</p><p><b>Resolution:</b> Fixed — the key is bound at the job level (env:) and the steps test the env context, which is available in a step-level if:. The CI now runs on JDK 11, 17, 21 and 25, plus the integration tests against live MongoDB, Cassandra, CouchDB and Neo4j, and the weekly dependency scan. The lesson is recorded in AGENTS.md.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="supply-chain" data-search="build-01  supply-chain  jdk 24 removed the securitymanager permanently (jep 486), and -djava.security.manager=allow no longer works — the forked test jvm aborts with &quot;a command line option has attempted to allow or enable the security manager&quot;, taking the whole test run with it. fixed — the test jvm now uses the framework's own switch, -dtests.security.manager=false, which every jdk from 9 onwards honours. the embedded elasticsearch node now starts on jdk 25.">
+          <td><code>BUILD-01</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill mute">supply-chain</span></td>
+          <td><span class="where">—</span></td>
+          <td><details><summary>JDK 24 removed the SecurityManager permanently (JEP 486), and -Djava.security.manager=allow no longer works — the forked test JVM aborts with &quot;A command line option has attempted to allow or enable the Security Manager&quot;, taking the whole test run with it.</summary><p>JDK 24 removed the SecurityManager permanently (JEP 486), and -Djava.security.manager=allow no longer works — the forked test JVM aborts with &quot;A command line option has attempted to allow or enable the Security Manager&quot;, taking the whole test run with it. The Elasticsearch 7.x test framework installs a SecurityManager in its static initialiser.</p><p><b>Resolution:</b> Fixed — the test JVM now uses the framework's own switch, -Dtests.security.manager=false, which every JDK from 9 onwards honours. The embedded Elasticsearch node now starts on JDK 25.</p></details></td>
+        </tr>
+        <tr data-sev="S1" data-cat="supply-chain" data-search="build-02  supply-chain  easymock 5.2.0 cannot generate a class on jdk 25 (illegalargumentexception: could not create type from its shaded bytebuddy), so the 15 dialect-rewriter tests that easymock 3.2 had silently broken on jdk 17+ failed again on the newest jdk. fixed — easymock 5.7.0 bundles a bytebuddy that supports class file version 69.">
+          <td><code>BUILD-02</code></td>
+          <td><span class="sev s1">S1</span></td>
+          <td><span class="pill mute">supply-chain</span></td>
+          <td><span class="where">—</span></td>
+          <td><details><summary>EasyMock 5.2.0 cannot generate a class on JDK 25 (IllegalArgumentException: Could not create type from its shaded ByteBuddy), so the 15 dialect-rewriter tests that EasyMock 3.2 had silently broken on JDK 17+ failed again on the newest JDK.</summary><p><b>Resolution:</b> Fixed — EasyMock 5.7.0 bundles a ByteBuddy that supports class file version 69.</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="supply-chain" data-search="build-03  supply-chain  maven-compiler-plugin:3.7.0 predates --release. fixed — the compiler plugin is now 3.13.0 and uses maven.compiler.release=8, so the java 8 api signatures are enforced at compile time. the whole tree compiles unchanged under it, which confirms the claim.">
+          <td><code>BUILD-03</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill mute">supply-chain</span></td>
+          <td><span class="where">—</span></td>
+          <td><details><summary>maven-compiler-plugin:3.7.0 predates --release.</summary><p>maven-compiler-plugin:3.7.0 predates --release. With source/target only, the compiler links against the API of whatever JDK runs the build — so code could call a Java 9+ API, still compile, and produce a class file that throws NoSuchMethodError on a real Java 8 runtime. The project claimed Java 8 compatibility without enforcing it.</p><p><b>Resolution:</b> Fixed — the compiler plugin is now 3.13.0 and uses maven.compiler.release=8, so the Java 8 API signatures are enforced at compile time. The whole tree compiles unchanged under it, which confirms the claim.</p></details></td>
+        </tr>
+        <tr data-sev="S2" data-cat="supply-chain" data-search="build-04  supply-chain  the full package shipped duplicate classes. fixed — hadoop-auth is pinned to the hadoop line, and the remaining benign duplicates are declared in full/tattletale-filters.properties with the reason for each.">
+          <td><code>BUILD-04</code></td>
+          <td><span class="sev s2">S2</span></td>
+          <td><span class="pill mute">supply-chain</span></td>
+          <td><span class="where">—</span></td>
+          <td><details><summary>The full package shipped duplicate classes.</summary><p>The full package shipped duplicate classes. The javax. classes that the jakarta.-named artifacts ship under the old namespace (jakarta.xml.bind-api vs jaxb-api, jakarta.activation-api vs javax.activation-api), plus multi-release module-info.class and empty package-info markers, were flagged by the duplicate-class check. hbase-client also dragged in hadoop-auth:2.10.0 next to hadoop-common:3.4.1.</p><p><b>Resolution:</b> Fixed — hadoop-auth is pinned to the Hadoop line, and the remaining benign duplicates are declared in full/tattletale-filters.properties with the reason for each.</p></details></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================ REFUTED ============================ -->
+<section id="refuted">
+  <span class="section-kicker">Chapter 04</span>
+  <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 3v6h6"/></svg>Two findings that were refuted</h2>
+  <p>
+    <b>R-01</b> was reported as an S1 out-of-scope injection: <em>"IN-list values are rendered
+    into SQL with no escaping."</em> It was refuted on inspection — the investigator had read
+    only the <code>operand instanceof String</code> branch of the rewriter, and missed the
+    branch that handles iterables and arrays, which escapes every string element.
+  </p>
+  <p>
+    The finding was put back to its originator, who <b>retracted it</b> and added two
+    regression tests that now lock the layering in place.
+  </p>
+
+  <figure>
+    <svg class="diagram" viewBox="0 0 900 330" role="img" aria-label="The escaping layering: the JDBC layer escapes values, the core renderer does not, and adding a second escape would double-escape">
+      <rect x="30" y="26" width="840" height="118" rx="14" fill="rgba(47,111,94,.06)" stroke="rgba(47,111,94,.3)"/>
+      <text x="56" y="54" font-family="Outfit,sans-serif" font-size="15" font-weight="600" fill="#14171e">As it stands — one layer of escaping, and it is correct</text>
+      <rect x="56" y="70" width="250" height="52" rx="11" fill="#fff" stroke="rgba(47,111,94,.4)"/>
+      <text x="181" y="92" text-anchor="middle" font-family="Outfit,sans-serif" font-size="13.5" font-weight="600" fill="#14171e">JDBC rewriter</text>
+      <text x="181" y="111" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#235045">escapes every value</text>
+      <path d="M316 96 H404" stroke="#8a8577" stroke-width="1.8" fill="none" marker-end="url(#hA)"/>
+      <rect x="414" y="70" width="250" height="52" rx="11" fill="#fff" stroke="#e9e3d6"/>
+      <text x="539" y="92" text-anchor="middle" font-family="Outfit,sans-serif" font-size="13.5" font-weight="600" fill="#14171e">core renderer</text>
+      <text x="539" y="111" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#7c7a72">does not escape</text>
+      <text x="700" y="92" font-family="JetBrains Mono,monospace" font-size="12" fill="#235045">O'Brien</text>
+      <text x="700" y="112" font-family="JetBrains Mono,monospace" font-size="12" fill="#235045">→ O''Brien</text>
+
+      <rect x="30" y="166" width="840" height="118" rx="14" fill="rgba(176,99,103,.06)" stroke="rgba(176,99,103,.28)"/>
+      <text x="56" y="194" font-family="Outfit,sans-serif" font-size="15" font-weight="600" fill="#8a4a4d">If the refuted finding had been acted on — a serious regression</text>
+      <rect x="56" y="210" width="250" height="52" rx="11" fill="#fff" stroke="rgba(176,99,103,.4)"/>
+      <text x="181" y="232" text-anchor="middle" font-family="Outfit,sans-serif" font-size="13.5" font-weight="600" fill="#14171e">JDBC rewriter</text>
+      <text x="181" y="251" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#8a4a4d">escapes every value</text>
+      <path d="M316 236 H404" stroke="#8a8577" stroke-width="1.8" fill="none" marker-end="url(#hA)"/>
+      <rect x="414" y="210" width="250" height="52" rx="11" fill="#fff" stroke="rgba(176,99,103,.4)"/>
+      <text x="539" y="232" text-anchor="middle" font-family="Outfit,sans-serif" font-size="13.5" font-weight="600" fill="#14171e">core renderer</text>
+      <text x="539" y="251" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="11" fill="#8a4a4d">escapes too — by mistake</text>
+      <text x="700" y="232" font-family="JetBrains Mono,monospace" font-size="12" fill="#8a4a4d">O'Brien</text>
+      <text x="700" y="252" font-family="JetBrains Mono,monospace" font-size="12" fill="#8a4a4d">→ O''''Brien</text>
+
+      <text x="450" y="308" text-anchor="middle" font-family="Outfit,sans-serif" font-size="13.5" fill="#7c7a72">A double escape corrupts the result of every query that contains a quote. The layering is deliberate and must stay single-layered.</text>
+    </svg>
+    <figcaption>The second refuted finding was <b>CM-05</b>: the hypothesis that COUNT / SUM / AVERAGE / MIN / MAX over empty and all-NULL inputs were mishandled. It was tested and refuted.</figcaption>
+  </figure>
+
+  <div class="callout good">
+    <span class="lbl">Why this is in the register at all</span>
+    <p>
+      A register that only lists what was fixed cannot show that the <em>refutations</em> were
+      checked. Recording them is what distinguishes an audit from a list of complaints — and
+      here, acting on one of them would have introduced a regression into every query with an
+      apostrophe in it. <b>No core change should be routed for R-01.</b>
+    </p>
+  </div>
+</section>
+
+<!-- ============================ BUILD ============================ -->
+<section id="build">
+  <span class="section-kicker">Chapter 05</span>
+  <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17h16"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M12 3v4"/><path d="m8 7 4-4 4 4"/></svg>The build</h2>
+  <p>
+    The project <b>did not build at all</b> when the audit started. Eight modules were missing
+    from the source tree, and the SugarCRM module had a dependency that could not be resolved:
+    the JAX-WS RI stack transitively requires
+    <code>org.glassfish.jaxb:txw2:2.4.0-b180608.0325</code>, which was only ever published to
+    plain-HTTP repositories that no longer exist — and Maven 3.8+ blocks plain-HTTP outright.
+  </p>
+  <p>
+    The toolchain was 2020-era. It was replaced, the dependency was pinned to the release that
+    <em>is</em> on Central, and the result is green on two JDKs with the library's Java 8
+    bytecode floor untouched.
+  </p>
+
+  <figure>
+    <svg class="diagram" viewBox="0 0 900 400" role="img" aria-label="The CI matrix: four JDKs each running build and test, plus integration tests against live datastores and a weekly dependency scan">
+      <text x="30" y="30" font-family="JetBrains Mono,monospace" font-size="11" fill="#7c7a72">JOB</text>
+      <g font-family="JetBrains Mono,monospace" font-size="12" fill="#8f5a29" text-anchor="middle">
+        <text x="300" y="30">JDK 11</text>
+        <text x="430" y="30">JDK 17</text>
+        <text x="560" y="30">JDK 21</text>
+        <text x="690" y="30">JDK 25</text>
+      </g>
+
+      <text x="30" y="100" font-family="Outfit,sans-serif" font-size="14" font-weight="600" fill="#14171e">build &amp; test</text>
+      <g>
+        <rect x="250" y="72" width="100" height="40" rx="9" fill="rgba(47,111,94,.09)" stroke="rgba(47,111,94,.38)"/>
+        <rect x="380" y="72" width="100" height="40" rx="9" fill="rgba(47,111,94,.09)" stroke="rgba(47,111,94,.38)"/>
+        <rect x="510" y="72" width="100" height="40" rx="9" fill="rgba(47,111,94,.09)" stroke="rgba(47,111,94,.38)"/>
+        <rect x="640" y="72" width="100" height="40" rx="9" fill="rgba(47,111,94,.09)" stroke="rgba(47,111,94,.38)"/>
+        <g font-family="Outfit,sans-serif" font-size="12.5" fill="#235045" text-anchor="middle">
+          <text x="300" y="97">30/30</text><text x="430" y="97">30/30</text>
+          <text x="560" y="97">30/30</text><text x="690" y="97">30/30</text>
+        </g>
+      </g>
+
+      <text x="30" y="180" font-family="Outfit,sans-serif" font-size="14" font-weight="600" fill="#14171e">integration</text>
+      <rect x="250" y="152" width="490" height="40" rx="9" fill="rgba(201,123,63,.10)" stroke="rgba(201,123,63,.38)"/>
+      <text x="495" y="177" text-anchor="middle" font-family="Outfit,sans-serif" font-size="12.5" fill="#8f5a29">live MongoDB 5.0 · Cassandra 4.1 · CouchDB 2.3.1 · Neo4j 3.5</text>
+
+      <text x="30" y="260" font-family="Outfit,sans-serif" font-size="14" font-weight="600" fill="#14171e">dependency scan</text>
+      <rect x="250" y="232" width="490" height="40" rx="9" fill="rgba(47,111,94,.09)" stroke="rgba(47,111,94,.38)"/>
+      <text x="495" y="257" text-anchor="middle" font-family="Outfit,sans-serif" font-size="12.5" fill="#235045">OWASP dependency-check, weekly</text>
+
+      <rect x="30" y="300" width="840" height="76" rx="13" fill="rgba(47,111,94,.05)" stroke="rgba(47,111,94,.26)"/>
+      <text x="56" y="330" font-family="Outfit,sans-serif" font-size="14.5" font-weight="600" fill="#14171e">1049 tests · 0 failures · 0 errors · 0 skipped</text>
+      <text x="56" y="356" font-family="Outfit,sans-serif" font-size="13" fill="#3a4256">Green on Temurin 21.0.12 and 25.0.4.1+1 (LTS), all 30 modules, against live datastores.</text>
+    </svg>
+    <figcaption>The CI matrix the fork runs. It was three of these that did not work, and the defects were in the CI itself — see chapter 07.</figcaption>
+  </figure>
+</section>
+
+<!-- ============================ SUPPLY CHAIN ============================ -->
+<section id="supply">
+  <span class="section-kicker">Chapter 06</span>
+  <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>The supply chain</h2>
+  <p>
+    <b>342 advisories</b> across <b>461 resolved artifacts</b>; <b>167</b> of those advisories
+    affect the 48 coordinates MetaModel pins directly. <b>23 dependency upgrades</b> were
+    applied and re-verified against OSV before pinning, and the reactor build was re-run
+    afterwards.
+  </p>
+  <p>
+    The full inventory, the methodology, the scope triage and the rationale for the upgrades
+    that were <em>deferred</em> are in
+    <a href="docs/SUPPLY-CHAIN.md"><code>docs/SUPPLY-CHAIN.md</code></a>. The deferred ones
+    are recorded rather than silently skipped — a dependency that is old is a fact; a
+    dependency that is old and unexplained is a surprise.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <h4>Two migrations, not version bumps</h4>
+      <p class="tight" style="margin-bottom:0">
+        The MongoDB adapter moved from <code>mongo-java-driver:3.1.0</code> to
+        <code>mongodb-driver-sync:4.11.1</code> and the Cassandra adapter from
+        <code>cassandra-driver-core:3.11.5</code> to the 4.x OSS driver. Both are
+        <b>API migrations</b>: <code>DB</code> and <code>DBCollection</code> become
+        <code>MongoDatabase</code> and <code>MongoCollection&lt;Document&gt;</code>;
+        <code>Cluster</code> becomes <code>CqlSession</code>. The shared
+        <code>mongodb/common</code> module had to become <b>driver-free</b>, because
+        <code>mongo2</code> pins the 2.x driver and <code>mongo3</code> the 4.x one, and a
+        class referenced by <code>common</code>'s bytecode may not exist in only one of them.
+        Proven with <code>javap</code>: no <code>com/mongodb</code> or <code>org/bson</code>
+        reference in its bytecode.
+      </p>
+    </div>
+    <div class="card">
+      <h4>Two real bugs, found by the migration</h4>
+      <p class="tight" style="margin-bottom:0">
+        The advised write concern was <b>discarded</b> — <code>withWriteConcern</code> returns
+        a <em>new</em> collection, and the code ignored the return value. And
+        <code>adviceDeleteQuery</code> was <b>never called</b>. Neither was visible before,
+        because the old driver made the same mistake look harmless.
+      </p>
+      <p class="tight" style="margin:12px 0 0">
+        The MongoDB test takes <b>2.7 s</b> against a live server and <b>0.07 s</b> when none
+        is configured — which is the proof that the live assertions actually ran.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ INFRASTRUCTURE ============================ -->
+<section id="infrastructure">
+  <span class="section-kicker">Chapter 07</span>
+  <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><path d="M6 7h.01"/><path d="M6 17h.01"/></svg>Three defects in the CI</h2>
+  <p>
+    The most instructive defects were in the continuous integration itself — found because the
+    fork had to be published, and the publishing process is what exercises the CI.
+  </p>
+
+  <ol class="timeline">
+    <li>
+      <span class="when">INFRA-01</span>
+      <strong>A rebuild silently dropped a tracked test fixture</strong>
+      <p><code>jdbc/src/test/resources/.gitignore</code> ignores <code>/trac.db</code>, but
+      upstream committed that file <em>before</em> the ignore rule existed, so it is tracked
+      there. Rebuilding the baseline with <code>git add -A</code> from a working tree dropped
+      it — and the working tree still had the file, so every local build passed. A
+      <b>fresh clone</b> would have failed <code>SqliteTest</code>. The fix was to re-base the
+      audit commits onto upstream's real history rather than onto a recreated root commit, so
+      the fixture is tracked again and the upstream lineage is preserved.</p>
+    </li>
+    <li>
+      <span class="when">INFRA-02</span>
+      <strong>GitHub rejected the workflow before a single job started</strong>
+      <p>The <code>dependency-check</code> job tested the NVD key with
+      <code>if: ${{ secrets.NVD_API_KEY != '' }}</code> in a <em>step-level</em> condition — and
+      the <code>secrets</code> context is not available there. GitHub rejects the whole
+      workflow and reports it as a workflow-file error, so the symptom was a run that failed in
+      zero seconds with no jobs and no log to read. It went unnoticed because the upstream
+      repository was archived and the workflow had never run. The key is now bound at the
+      <em>job</em> level and the steps test the <code>env</code> context, which is available
+      in a step-level condition.</p>
+    </li>
+    <li>
+      <span class="when">INFRA-03</span>
+      <strong>The workflow referenced a service that did not exist</strong>
+      <p>CI configured <code>neo4j.hostname</code> but declared no Neo4j service, and the
+      missing <code>cassandra.*</code> properties were never noticed because the integration
+      job had never run. Both were added — Neo4j 3.5 with a health check and
+      <code>NEO4J_AUTH</code>, and the Cassandra properties that the adapter needs.</p>
+    </li>
+  </ol>
+
+  <div class="callout">
+    <span class="lbl">The lesson, recorded in AGENTS.md</span>
+    <p>
+      A CI workflow that has never run is not a CI workflow. It is a file. The first fork
+      push is what turned three of them into findings.
+    </p>
+  </div>
+</section>
+
+<!-- ============================ FORK ============================ -->
+<section id="fork">
+  <span class="section-kicker">Chapter 08</span>
+  <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>What this fork is</h2>
+  <p>
+    Apache MetaModel was retired by the ASF in <b>June 2021</b> and moved to
+    <a href="https://attic.apache.org/projects/metamodel.html">the Attic</a> in July 2021. The
+    ASF does not release retired projects, so the last upstream commit is the last thing that
+    will ever be published under <code>org.apache.metamodel</code> — including its security
+    holes.
+  </p>
+
+  <div class="grid-2">
+    <div class="card">
+      <h4>It is</h4>
+      <ul class="tight" style="margin-bottom:0">
+        <li>The last upstream commit plus the fixes in the register</li>
+        <li>A build that works, on two JDKs, with 1049 tests</li>
+        <li>Green CI on four JDKs, against live datastores</li>
+        <li>Java 8 bytecode — the library's floor, unchanged</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>It is not</h4>
+      <ul class="tight" style="margin-bottom:0">
+        <li>An ASF project, or endorsed by the ASF</li>
+        <li>A fork the ASF knows about — yet</li>
+        <li>Published to Maven Central under <code>org.apache.metamodel</code>, which the ASF owns</li>
+        <li>Complete: the <code>sugarcrm</code> module's JAX-WS implementation is supplied by the consuming application, and a substituted stack was not verified</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout warn">
+    <span class="lbl">One residual risk, recorded rather than fixed</span>
+    <p>
+      <code>sugarcrm</code> depends on <code>jaxws-rt</code> with <code>provided</code> scope,
+      so the JAX-WS implementation that actually parses inbound SOAP messages is supplied by the
+      <em>consuming application</em>. The two versions the module pins were verified — and the
+      inbound path was proved not exploitable — but a substituted stack was not. Giving
+      <code>jaxws-rt</code> compile scope would close the gap, and it changes the published
+      packaging of the module, so it is a project decision rather than a module-local fix.
+    </p>
+  </div>
+
+  <h3>Where it is published</h3>
+  <p>
+    The version in this repository is still <code>5.3.4-SNAPSHOT</code>, because that is what
+    the upstream line was called and the ASF never released it. When the fork is published it
+    will be under <b>a group of its own</b> — not <code>org.apache.metamodel</code>, which the
+    ASF owns — and under the version <code>5.3.4-forenxics.1</code>. The qualifier is what
+    makes the version say what it is: a fork of the 5.3.4 line, carrying the security fixes,
+    and not a 5.3.4 that the ASF released.
+  </p>
+  <p>
+    Until then it is built from source. The
+    <a href="https://github.com/Forenxics/metamodel-broker">policy-enforced broker</a> that
+    depends on it installs the fork from source in its own CI, which is why that repository's
+    builds take about eleven minutes.
+  </p>
+</section>
+
+<!-- ============================ GLOSSARY ============================ -->
+<section id="glossary">
+  <span class="section-kicker">Appendix</span>
+  <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>Glossary</h2>
+  <p>The jargon, decoded.</p>
+
+  <dl class="gloss" id="gloss">
+    <div class="g" data-cat="vuln"><dt>CWE</dt><dd>Common Weakness Enumeration — the MITRE catalogue of software weakness classes. <code>CWE-89</code> is SQL injection; <code>CWE-611</code> is XML External Entity processing; <code>CWE-502</code> is unsafe deserialization.</dd></div>
+    <div class="g" data-cat="vuln"><dt>XXE</dt><dd>XML External Entity processing. A parser that resolves an entity declared with a <code>SYSTEM</code> identifier can be made to read local files and to make outbound requests — a file-disclosure and SSRF primitive in one.</dd></div>
+    <div class="g" data-cat="vuln"><dt>SSRF</dt><dd>Server-Side Request Forgery — making the host issue a request on the attacker's behalf, to somewhere it can reach and the attacker cannot.</dd></div>
+    <div class="g" data-cat="vuln"><dt>SQLi</dt><dd>SQL injection — a value that changes the meaning of the statement rather than being data in it. Identifier injection, the S1 here, is the same idea one level up: the <em>name</em> of a column or table becomes code.</dd></div>
+    <div class="g" data-cat="vuln"><dt>deserialization</dt><dd>Reading an object back out of a byte stream by letting the stream instantiate whatever classes it names. Unrestricted, that is arbitrary code execution; a class allow-list is the fix.</dd></div>
+    <div class="g" data-cat="vuln"><dt>mutation-proved</dt><dd>The audit's term for a test that was run against the pre-fix code and had to fail there. It distinguishes a test that locks in a fix from one that merely passes.</dd></div>
+
+    <div class="g" data-cat="build"><dt>Attic</dt><dd>Where the ASF parks retired projects. An Attic project is frozen: no releases, no security fixes, and — the point here — no 5.3.4 will ever exist.</dd></div>
+    <div class="g" data-cat="build"><dt>OSV</dt><dd>Open Source Vulnerabilities — Google's advisory database and its query API, used to re-verify each upgraded coordinate rather than trusting a scanner's verdict.</dd></div>
+    <div class="g" data-cat="build"><dt>NVD</dt><dd>National Vulnerability Database. The API needs a key, and the check for that key is a place where a workflow can fail before any job runs.</dd></div>
+    <div class="g" data-cat="build"><dt>OWASP dependency-check</dt><dd>The scanner used for the weekly advisory sweep. It fails the build on a threshold rather than on every advisory, because an un-actionable advisory should not stop a release.</dd></div>
+    <div class="g" data-cat="build"><dt>Tattletale</dt><dd>The Apache release-assembly plugin that assembles the binary distribution. The root-relative output directories it wants are the intended layout of the ASF release archive, not a defect.</dd></div>
+    <div class="g" data-cat="build"><dt>bytecode floor</dt><dd>The oldest Java version the compiled classes will run on. MetaModel's is Java 8, and the fork keeps it: a library that raised its floor would break every consumer that had not yet moved.</dd></div>
+    <div class="g" data-cat="build"><dt>Temurin</dt><dd>Eclipse Adoptium's build of OpenJDK — the JDK distribution the fork is verified against, on versions 21.0.12 and 25.0.4.1+1 (LTS).</dd></div>
+
+    <div class="g" data-cat="vuln"><dt>JEP</dt><dd>JDK Enhancement Proposal — the numbered document through which the JDK changes. JEP 403 (strong encapsulation, Java 9) and JEP 486 (the permanent removal of the SecurityManager, Java 24) are the two that shaped this audit.</dd></div>
+    <div class="g" data-cat="vuln"><dt>JAX-WS / RI</dt><dd>The SOAP web-services stack and its reference implementation. Which parser it uses is decided at runtime, which is why the inbound-SOAP question could only be settled by experiment.</dd></div>
+    <div class="g" data-cat="vuln"><dt>Woodstox</dt><dd>The StAX implementation the JAX-WS RI uses to read messages. Its live configuration here disables DTD support and external entities — set by the RI on the factory it creates, so the hardening travels with the RI.</dd></div>
+  </dl>
+</section>
+
+</main>
+</div>
+
+<footer>
+  <p>
+    <b>Apache MetaModel</b> — an unofficial fork of a retired ASF project, maintained
+    independently and not endorsed by the ASF.
+    <a href="https://github.com/Forenxics/metamodel">github.com/Forenxics/metamodel</a> ·
+    <a href="docs/DEFECT-REGISTER.md">the register</a> ·
+    <a href="docs/SUPPLY-CHAIN.md">the supply chain</a> ·
+    <a href="docs/AUDIT-BRIEF.md">the brief</a>.
+  </p>
+</footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var search = document.getElementById('globalSearch');
+  var sections = Array.prototype.slice.call(document.querySelectorAll('main section'));
+  var navLinks = Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+  var chips = Array.prototype.slice.call(document.querySelectorAll('[data-reg-filter]'));
+  var rows = Array.prototype.slice.call(document.querySelectorAll('#regTable tbody tr'));
+  var regCount = document.getElementById('regCount');
+  var filter = 'all';
+
+  function norm(s){ return (s||'').toLowerCase(); }
+
+  function applyFilter(){
+    var q = norm(search.value);
+    var terms = q ? q.split(/\s+/) : [];
+    var shown = 0;
+    rows.forEach(function(tr){
+      var sev = tr.getAttribute('data-sev');
+      var cat = tr.getAttribute('data-cat');
+      var byChip = (filter === 'all') || (filter === sev) || (filter === cat);
+      var text = norm(tr.getAttribute('data-search') || tr.textContent);
+      var byText = !terms.length || terms.every(function(t){ return text.indexOf(t) !== -1; });
+      var ok = byChip && byText;
+      tr.style.display = ok ? '' : 'none';
+      if (ok) { shown++; }
+    });
+    if (regCount) { regCount.textContent = shown + ' of ' + rows.length + ' findings'; }
+  }
+
+  function applySearch(){
+    var q = norm(search.value);
+    var terms = q ? q.split(/\s+/) : [];
+
+    sections.forEach(function(sec){
+      if (!terms.length) { sec.style.display = ''; return; }
+      var text = norm(sec.textContent);
+      var ok = terms.every(function(t){ return text.indexOf(t) !== -1; });
+      sec.style.display = ok ? '' : 'none';
+    });
+
+    navLinks.forEach(function(a){
+      var id = a.getAttribute('href').slice(1);
+      var sec = document.getElementById(id);
+      a.classList.toggle('hidden', !sec || sec.style.display === 'none');
+    });
+
+    applyFilter();
+  }
+
+  search.addEventListener('input', applySearch);
+  search.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') { search.value = ''; applySearch(); }
+  });
+
+  chips.forEach(function(c){
+    c.addEventListener('click', function(){
+      chips.forEach(function(o){ o.classList.remove('on'); });
+      c.classList.add('on');
+      filter = c.getAttribute('data-reg-filter');
+      applyFilter();
+    });
+  });
+
+  var spy = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if (!e.isIntersecting) return;
+      navLinks.forEach(function(a){
+        var isActive = a.getAttribute('href') === '#' + e.target.id;
+        if (a.classList.contains('active') !== isActive) {
+          a.classList.toggle('active', isActive);
+        }
+      });
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  sections.forEach(function(s){ spy.observe(s); });
+
+  applyFilter();
+
+  window.addEventListener('beforeprint', function(){
+    sections.forEach(function(s){ s.style.display = ''; });
+    rows.forEach(function(tr){ tr.style.display = ''; });
+    Array.prototype.forEach.call(document.querySelectorAll('#regTable details'), function(d){ d.open = true; });
+  });
+})();
+</script>
+</body>
+</html>
