@@ -55,6 +55,27 @@
 >
 > The repackaging lives on the `release/5.3.4-forenxics.1` branch, so that
 > `master` keeps the upstream lineage and stays legible as a diff.
+>
+> **Publishing it.** The branch carries everything Maven Central asks for: the
+> artifacts, their sources jars, their javadoc jars, their POMs, and the
+> publishing plugin that uploads them as one bundle. What it cannot carry is
+> the credential. To publish:
+>
+> 1. Own the domain behind the groupId, or use one you do. `io.forenxics.*`
+>    needs proof of `forenxics.com`; `com.forenxics.*` needs the same;
+>    `io.github.<account>` needs proof of the GitHub account.
+> 2. Create a Sonatype Central Portal account and a namespace for the
+>    groupId, and prove the domain with the TXT record it asks for.
+> 3. Generate a GPG key, and put the passphrase in a `settings.xml` with a
+>    `<server>` of id `central` — the id the build refers to. Nothing secret
+>    belongs in this repository.
+> 4. `mvn -B clean deploy` from the root of the release branch.
+> 5. Read the validation result in the portal before it goes live.
+>    `autoPublish` is off for exactly that reason.
+>
+> The build is `mvn clean install`; the deployment is the same reactor with
+> `deploy` in place of `install`, and the publishing plugin is already wired
+> into the root POM with `autoPublish` off.
 
 ## Apache MetaModel
 
