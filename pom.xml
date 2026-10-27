@@ -24,6 +24,7 @@ under the License.
 		<sshwagon.version>3.5.3</sshwagon.version>
 		<javadoc.version>3.6.3</javadoc.version>
 		<source.plugin.version>3.3.1</source.plugin.version>
+		<central.publishing.plugin.version>0.12.0</central.publishing.plugin.version>
 		<!--
 			Default value for the surefire argLine. JaCoCo's prepare-agent goal
 			overrides this property with the -javaagent flag; the surefire
@@ -427,6 +428,28 @@ under the License.
 						</configuration>
 					</execution>
 				</executions>
+			</plugin>
+
+			<plugin>
+				<!--
+					The publishing plugin of the Sonatype Central Portal. It
+					replaces the deploy plugin for the whole reactor, so that
+					`mvn deploy` uploads the bundle for every module of this
+					release in one go.
+
+					The credentials live in the settings.xml, not here: the
+					`central` server id refers to a <server> with a
+					username and a passphrase for the GPG key. Nothing in
+					this repository is a secret.
+				-->
+				<groupId>org.sonatype.central</groupId>
+				<artifactId>central-publishing-maven-plugin</artifactId>
+				<version>${central.publishing.plugin.version}</version>
+				<extensions>true</extensions>
+				<configuration>
+					<publishingServerId>central</publishingServerId>
+					<autoPublish>false</autoPublish>
+				</configuration>
 			</plugin>
 
 		</plugins>
