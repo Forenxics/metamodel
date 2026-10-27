@@ -23,6 +23,7 @@ under the License.
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<sshwagon.version>3.5.3</sshwagon.version>
 		<javadoc.version>3.6.3</javadoc.version>
+		<source.plugin.version>3.3.1</source.plugin.version>
 		<!--
 			Default value for the surefire argLine. JaCoCo's prepare-agent goal
 			overrides this property with the -javaagent flag; the surefire
@@ -338,11 +339,49 @@ under the License.
 						</goals>
 						<phase>site</phase>
 					</execution>
+					<execution>
+						<!--
+							Maven Central requires a javadoc jar beside every
+							artifact it publishes, so this is not optional on
+							the release branch - a publish without it is
+							rejected.
+						-->
+						<id>javadoc-jar</id>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+						<phase>package</phase>
+					</execution>
 				</executions>
 				<configuration>
 					<excludePackageNames>com.sugarcrm.ws.soap</excludePackageNames>
 					<doclint>none</doclint>
+					<!-- The library's bytecode floor is Java 8, and so is its javadoc. -->
+					<source>8</source>
+					<notimestamp>true</notimestamp>
+					<detectJavaApiLink>false</detectJavaApiLink>
+					<detectOfflineLinks>false</detectOfflineLinks>
+					<detectLinks>false</detectLinks>
 				</configuration>
+			</plugin>
+
+			<plugin>
+				<!--
+					Maven Central requires a sources jar beside every artifact it
+					publishes. The ASF parent attaches one only in its release
+					profile, which a fork does not use.
+				-->
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-source-plugin</artifactId>
+				<version>${source.plugin.version}</version>
+				<executions>
+					<execution>
+						<id>attach-sources</id>
+						<goals>
+							<goal>jar-no-fork</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 
 			<plugin>
